@@ -227,6 +227,52 @@ final class XPCHelperClient: NSObject {
         }
     }
     
+    // MARK: - Notch Agent
+
+    nonisolated func listShortcuts() async -> [String] {
+        do {
+            let service = await MainActor.run { ensureRemoteService() }
+            return try await service.withContinuation { service, continuation in
+                service.listShortcuts { names in continuation.resume(returning: names) }
+            }
+        } catch {
+            return []
+        }
+    }
+
+    nonisolated func runShortcut(_ name: String) async -> Bool {
+        do {
+            let service = await MainActor.run { ensureRemoteService() }
+            return try await service.withContinuation { service, continuation in
+                service.runShortcut(name) { ok in continuation.resume(returning: ok) }
+            }
+        } catch {
+            return false
+        }
+    }
+
+    nonisolated func retireApp(bundleIdentifier: String) async -> Bool {
+        do {
+            let service = await MainActor.run { ensureRemoteService() }
+            return try await service.withContinuation { service, continuation in
+                service.retireApp(bundleIdentifier: bundleIdentifier) { ok in continuation.resume(returning: ok) }
+            }
+        } catch {
+            return false
+        }
+    }
+
+    nonisolated func exportPreferences(bundleIdentifier: String) async -> Data? {
+        do {
+            let service = await MainActor.run { ensureRemoteService() }
+            return try await service.withContinuation { service, continuation in
+                service.exportPreferences(bundleIdentifier: bundleIdentifier) { data in continuation.resume(returning: data) }
+            }
+        } catch {
+            return nil
+        }
+    }
+
     nonisolated func setScreenBrightness(_ value: Float) async -> Bool {
         do {
             let service = await MainActor.run {

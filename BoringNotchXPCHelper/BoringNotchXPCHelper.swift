@@ -5,12 +5,81 @@
 //  Created by Alexander on 2025-11-16.
 //
 
+import AppKit
 import Foundation
 import ApplicationServices
 import IOKit
 import CoreGraphics
 
 class BoringNotchXPCHelper: NSObject, BoringNotchXPCHelperProtocol {
+
+    // MARK: - Notch Agent: Shortcuts
+
+    @objc func listShortcuts(with reply: @escaping ([String]) -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let output = Self.run("/usr/bin/shortcuts", ["list"], wait: 10) ?? ""
+            let names = output.split(separator: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            reply(names)
+        }
+    }
+
+    @objc func runShortcut(_ name: String, with reply: @escaping (Bool) -> Void) {
+        // Start it and reply right away; shortcuts can run for a long time.
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/shortcuts")
+        process.arguments = ["run", name]
+        do {
+            try process.run()
+            reply(true)
+        } catch {
+            reply(false)
+        }
+    }
+
+    // MARK: - Notch Agent: replace boring.notch
+
+    /// Quits every running copy of the app and moves its bundles in /Applications to the Trash.
+    @objc func retireApp(bundleIdentifier: String, with reply: @escaping (Bool) -> Void) {
+        DispatchQueue.main.async {
+            let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+            running.forEach { $0.terminate() }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
+                running.filter { !$0.isTerminated }.forEach { $0.forceTerminate() }
+                var removed = false
+                let urls = NSWorkspace.shared.urlsForApplications(withBundleIdentifier: bundleIdentifier)
+                for url in urls where url.path.hasPrefix("/Applications/") || url.path.contains("/Applications/") {
+                    if (try? FileManager.default.trashItem(at: url, resultingItemURL: nil)) != nil { removed = true }
+                }
+                reply(removed || !running.isEmpty)
+            }
+        }
+    }
+
+    /// Reads another (sandboxed) app's preferences plist so its settings can be carried over.
+    @objc func exportPreferences(bundleIdentifier: String, with reply: @escaping (Data?) -> Void) {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let candidates = [
+            "\(home)/Library/Containers/\(bundleIdentifier)/Data/Library/Preferences/\(bundleIdentifier).plist",
+            "\(home)/Library/Preferences/\(bundleIdentifier).plist",
+        ]
+        reply(candidates.lazy.compactMap { FileManager.default.contents(atPath: $0) }.first)
+    }
+
+    private static func run(_ path: String, _ arguments: [String], wait seconds: TimeInterval) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        do { try process.run() } catch { return nil }
+        let deadline = Date().addingTimeInterval(seconds)
+        while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
+        if process.isRunning { process.terminate(); return nil }
+        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+    }
     
     @objc func isAccessibilityAuthorized(with reply: @escaping (Bool) -> Void) {
         reply(AXIsProcessTrusted())

@@ -122,6 +122,111 @@ export function repairArgs(args: Record<string, unknown>, schema: any): Record<s
   return out;
 }
 
+function repairCalls(calls: ToolCall[], body: any) {
+  for (const call of calls) {
+    const tool = body.tools?.find((t: any) => t.function?.name === call.function.name);
+    if (!tool) continue;
+    const before = call.function.arguments;
+    call.function.arguments = JSON.stringify(repairArgs(JSON.parse(before), tool.function.parameters));
+    if (call.function.arguments !== before) console.log(`[repair] ${call.function.name}: ${before} -> ${call.function.arguments}`);
+  }
+}
+
+const MARKERS = ["<|tool_call>", "<tool_call|>", "<|tool_response>", "<|channel>", "<channel|>", "<|turn>", "<turn|>", '<|"|>'];
+
+/**
+ * Streams plain answer text to the client as it's generated, so replies appear word by
+ * word. As soon as a Gemma control marker starts (tool call, thinking), the rest is
+ * buffered and parsed at the end like the non-streaming path.
+ */
+export class TextStreamer {
+  private pending = "";
+  private buffering = false;
+  streamed = "";
+  constructor(private emit: (text: string) => void) {}
+
+  push(delta: string) {
+    if (this.buffering) return;
+    this.pending += delta;
+    let from = 0;
+    while (true) {
+      const i = this.pending.indexOf("<", from);
+      if (i < 0) break;
+      const rest = this.pending.slice(i);
+      if (MARKERS.some((m) => rest.startsWith(m))) {
+        this.out(this.pending.slice(0, i));
+        this.pending = "";
+        this.buffering = true;
+        return;
+      }
+      if (MARKERS.some((m) => m.startsWith(rest))) {
+        // Possibly the start of a marker split across chunks: hold it back.
+        this.out(this.pending.slice(0, i));
+        this.pending = rest;
+        return;
+      }
+      from = i + 1;
+    }
+    this.out(this.pending);
+    this.pending = "";
+  }
+
+  finish() {
+    if (!this.buffering) this.out(this.pending);
+    this.pending = "";
+  }
+
+  private out(text: string) {
+    if (!text) return;
+    // Don't stream leading whitespace before the first word.
+    if (!this.streamed) text = text.replace(/^\s+/, "");
+    if (!text) return;
+    this.streamed += text;
+    this.emit(text);
+  }
+}
+
+function streamAgentReply(body: any, upstreamBody: any, signal: AbortSignal): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const base = { id: "chatcmpl-" + crypto.randomUUID().replace(/-/g, ""), object: "chat.completion.chunk",
+                     created: Math.floor(Date.now() / 1000), model: body.model };
+      const send = (obj: unknown) => controller.enqueue(encoder.encode(sse(obj)));
+      send({ ...base, choices: [{ index: 0, delta: { role: "assistant", content: "" }, finish_reason: null }] });
+      const streamer = new TextStreamer((text) =>
+        send({ ...base, choices: [{ index: 0, delta: { content: text }, finish_reason: null }] }));
+      try {
+        const res = await callUpstream(upstreamBody, signal, "agent", (d) => streamer.push(d));
+        if (res instanceof Response) {
+          send({ error: { message: await res.text() } });
+          controller.close();
+          return;
+        }
+        streamer.finish();
+        const t = res.timings ?? {};
+        console.log(`[agent/stream] msgs=${body.messages?.length} prompt=${res.usage?.prompt_tokens} cached=${t.cache_n ?? 0} ` +
+                    `prefill=${Math.round(t.prompt_ms ?? 0)}ms gen=${res.usage?.completion_tokens}tok/${Math.round(t.predicted_ms ?? 0)}ms`);
+        const { content, reasoning, toolCalls } = splitContent(res.content);
+        repairCalls(toolCalls, body);
+        // Anything the streamer held back (text after a marker) that is real answer text.
+        const already = streamer.streamed.trim();
+        const extra = content.startsWith(already) ? content.slice(already.length) : "";
+        if (extra.trim()) send({ ...base, choices: [{ index: 0, delta: { content: extra }, finish_reason: null }] });
+        if (reasoning) send({ ...base, choices: [{ index: 0, delta: { reasoning_content: reasoning }, finish_reason: null }] });
+        toolCalls.forEach((c, index) =>
+          send({ ...base, choices: [{ index: 0, delta: { tool_calls: [{ index, ...c }] }, finish_reason: null }] }));
+        send({ ...base, choices: [{ index: 0, delta: {}, finish_reason: toolCalls.length ? "tool_calls" : res.finish }], usage: res.usage });
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      } catch (e) {
+        send({ error: { message: String(e) } });
+      }
+      controller.close();
+    },
+  });
+  return new Response(stream, { headers: { "content-type": "text/event-stream", "cache-control": "no-cache" } });
+}
+
 function sse(obj: unknown) { return `data: ${JSON.stringify(obj)}\n\n`; }
 
 // Live view of what the model is doing, polled by the notch app at GET /notch/status.
@@ -159,7 +264,7 @@ async function isSleeping(): Promise<boolean> {
 type UpstreamResult = { id: string; created: number; model: string; content: string; finish: string; usage: any; timings: any };
 
 /** Streams from llama-server so prompt progress and token rate are observable. */
-async function callUpstream(body: any, signal: AbortSignal, kind: string): Promise<UpstreamResult | Response> {
+async function callUpstream(body: any, signal: AbortSignal, kind: string, onDelta?: (text: string) => void): Promise<UpstreamResult | Response> {
   Object.assign(status, {
     phase: (await isSleeping()) ? "waking" : "prefill", kind, startedAt: Date.now(),
     promptTotal: 0, promptCached: 0, promptProcessed: 0, prefillTps: 0, genTokens: 0, genStartedAt: 0, genTps: 0,
@@ -203,6 +308,7 @@ async function callUpstream(body: any, signal: AbortSignal, kind: string): Promi
           if (status.phase !== "generating") { status.phase = "generating"; status.genStartedAt = Date.now(); }
           status.genTokens++;
           result.content += delta;
+          onDelta?.(delta);
         }
         if (choice?.finish_reason) result.finish = choice.finish_reason;
         if (ev.usage) result.usage = ev.usage;
@@ -269,6 +375,7 @@ async function chat(req: Request): Promise<Response> {
   };
   delete upstreamBody.stream_options;
   const kind = hasTools ? "agent" : body.grammar ? "decision" : "chat";
+  if (wantStream && hasTools) return streamAgentReply(body, upstreamBody, req.signal);
   const res = await callUpstream(upstreamBody, req.signal, kind);
   if (res instanceof Response) return res;
   const t = res.timings ?? {};
@@ -281,13 +388,7 @@ async function chat(req: Request): Promise<Response> {
   };
   const { content, reasoning, toolCalls } = splitContent(res.content);
   const calls = hasTools ? toolCalls : [];
-  for (const call of calls) {
-    const tool = body.tools.find((t: any) => t.function?.name === call.function.name);
-    if (!tool) continue;
-    const before = call.function.arguments;
-    call.function.arguments = JSON.stringify(repairArgs(JSON.parse(before), tool.function.parameters));
-    if (call.function.arguments !== before) console.log(`[repair] ${call.function.name}: ${before} -> ${call.function.arguments}`);
-  }
+  repairCalls(calls, body);
   const finish = calls.length ? "tool_calls" : res.finish;
   const message: any = { role: "assistant", content: content || (calls.length ? null : "") };
   if (reasoning) message.reasoning_content = reasoning;

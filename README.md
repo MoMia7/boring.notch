@@ -13,9 +13,13 @@ Notch Agent is a fork of [boring.notch](https://github.com/TheBoredTeam/boring.n
   - "open Slack"
   - dark mode, screenshots
   - "play Bohemian Rhapsody", "play my gym playlist" (Spotify)
+  - "remind me to call mom at 6", "block 2 to 3pm tomorrow for gym", "timer 10 minutes" (a countdown appears in the notch)
+  - any of your **Shortcuts** by name ("run my morning routine")
 - **A real agent for everything else.** Other requests go to [opencode](https://opencode.ai) running in the background, using ChatGPT, an API key, or a local model. Every shell command or file edit asks for your approval in the notch.
 - **Live status.** The notch shows the tool being run, progress, retries, and elapsed time. Results pop up when you weren't looking.
 - **Ambient nudges (optional).** Offers to help with new downloads, meetings about to start, and low battery.
+- **Replaces boring.notch.** If boring.notch is installed, Notch Agent brings its settings over and moves it to the Trash, so the two don't fight over the notch. Everything boring.notch does is still here.
+- **Updates itself.** New releases install automatically (Sparkle).
 
 ## Install
 
@@ -28,13 +32,19 @@ Notch Agent is a fork of [boring.notch](https://github.com/TheBoredTeam/boring.n
    ```sh
    curl -fsSL https://raw.githubusercontent.com/MoMia7/boring.notch/main/agent/setup.sh | zsh
    ```
-4. In **Settings → Notch Agent**:
+4. The first-launch guide walks you through the rest. You can come back to it any time in **Settings → Notch Agent → Agent → Setup**:
    - **Models:** log in with ChatGPT (Plus/Pro) or add an API key for any provider.
    - **Jev:** paste a [TypeSafe](https://console.typesafe.ai) API key to enable instant actions. It costs about a cent a day.
    - **Spotify** (optional, Premium): create a free app at the [Spotify developer dashboard](https://developer.spotify.com/dashboard) with the redirect URI shown in Settings, paste the Client ID, and click Connect.
 5. Grant **Accessibility** (for the push-to-talk key) and **Microphone** when asked.
 
 Requires macOS 14+. Voice input needs macOS 26+.
+
+## Development
+
+- `swift test` runs the parsing tests (music queries, levels, durations, dates).
+- `bun test agent/local-gemma` runs the local-model proxy tests.
+- `scripts/release.sh` builds, signs and packages `Notch-Agent.dmg`, and adds a signed entry to `appcast.xml`. Publish the DMG as a GitHub release `v<version>`, then commit `appcast.xml`.
 
 ## Local model (advanced)
 

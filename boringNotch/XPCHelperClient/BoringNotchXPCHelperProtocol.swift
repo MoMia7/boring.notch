@@ -20,5 +20,10 @@ import Foundation
     func isScreenBrightnessAvailable(with reply: @escaping (Bool) -> Void)
     func currentScreenBrightness(with reply: @escaping (NSNumber?) -> Void)
     func setScreenBrightness(_ value: Float, with reply: @escaping (Bool) -> Void)
+    // Notch Agent: Shortcuts and app housekeeping (the helper runs outside the app sandbox)
+    func listShortcuts(with reply: @escaping ([String]) -> Void)
+    func runShortcut(_ name: String, with reply: @escaping (Bool) -> Void)
+    func retireApp(bundleIdentifier: String, with reply: @escaping (Bool) -> Void)
+    func exportPreferences(bundleIdentifier: String, with reply: @escaping (Data?) -> Void)
 }
 

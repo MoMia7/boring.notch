@@ -25,6 +25,7 @@ struct ContentView: View {
     @ObservedObject var volumeManager = VolumeManager.shared
     @ObservedObject var agent = AgentManager.shared
     @ObservedObject var voice = VoiceInput.shared
+    @ObservedObject var timers = AgentTimers.shared
     @State private var hoverTask: Task<Void, Never>?
     @State private var isHovering: Bool = false
     @State private var anyDropDebounceTask: Task<Void, Never>?
@@ -74,6 +75,8 @@ struct ContentView: View {
         } else if vm.notchState == .closed && !coordinator.expandingView.show
             && (agent.isBusy || !agent.permissions.isEmpty) && !vm.hideOnClosed
         {
+            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
+        } else if vm.notchState == .closed && !coordinator.expandingView.show && timers.next != nil && !vm.hideOnClosed {
             chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
         } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music)
             && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle)
@@ -314,6 +317,8 @@ struct ContentView: View {
                               .transition(.opacity)
                       } else if vm.notchState == .closed && !coordinator.expandingView.show && (agent.isBusy || !agent.permissions.isEmpty) && !vm.hideOnClosed {
                           AgentLiveActivity()
+                      } else if vm.notchState == .closed && !coordinator.expandingView.show && timers.next != nil && !vm.hideOnClosed {
+                          TimerLiveActivity()
                       } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music) && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
                           MusicLiveActivity()
                               .frame(alignment: .center)
@@ -373,7 +378,10 @@ struct ContentView: View {
                 VStack {
                     switch coordinator.currentView {
                     case .home:
-                        NotchHomeView(albumArtNamespace: albumArtNamespace)
+                        VStack(spacing: 8) {
+                            NotchHomeView(albumArtNamespace: albumArtNamespace)
+                            AgentHomeStrip()
+                        }
                     case .shelf:
                         ShelfView()
                     case .agent:
@@ -440,6 +448,37 @@ struct ContentView: View {
                 .opacity(voice.state == .listening ? 1 : 0.4)
         }
         .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
+    }
+
+    @ViewBuilder
+    func TimerLiveActivity() -> some View {
+        let side = max(0, vm.effectiveClosedNotchHeight - 12)
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let timer = timers.next
+            let remaining = max(0, timer?.end.timeIntervalSince(context.date) ?? 0)
+            HStack {
+                ZStack {
+                    Circle().stroke(Color.orange.opacity(0.25), lineWidth: 2)
+                    Circle()
+                        .trim(from: 0, to: CGFloat(remaining / max(timer?.total ?? 1, 1)))
+                        .stroke(Color.orange, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Image(systemName: "timer").font(.system(size: 8, weight: .bold)).foregroundStyle(.orange)
+                }
+                .frame(width: side - 4, height: side - 4)
+                .frame(width: side, height: side)
+                Rectangle()
+                    .fill(.black)
+                    .frame(width: vm.closedNotchSize.width - 20)
+                Text(AgentTimers.format(remaining))
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.orange)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .frame(width: side, height: side)
+            }
+            .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
+        }
     }
 
     @ViewBuilder

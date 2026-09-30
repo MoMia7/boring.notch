@@ -92,6 +92,7 @@ final class PushToTalk {
     func start() {
         guard monitors.isEmpty else { return }
         VoiceInput.shared.warmUp()
+        Task { await QuickActions.shared.refreshShortcuts() }
         let mask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown]
         if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { event in
             Task { @MainActor in PushToTalk.shared.handle(event) }

@@ -236,27 +236,37 @@ final class SpotifyClient: ObservableObject {
 
     /// Saves the currently playing Spotify track to Liked Songs.
     func likeCurrentTrack() async -> String? {
-        guard let uri = Self.appleScript("tell application \"Spotify\" to return id of current track"),
+        guard let uri = await Self.appleScript("tell application \"Spotify\" to return id of current track"),
               uri.hasPrefix("spotify:track:") else { return nil }
         // Feb 2026: PUT /me/tracks was replaced by the unified PUT /me/library (takes URIs).
         guard await api("/me/library", method: "PUT", query: ["uris": uri]) != nil else { return nil }
-        return Self.appleScript("tell application \"Spotify\" to return name of current track")
+        return await Self.appleScript("tell application \"Spotify\" to return name of current track")
     }
 
     // MARK: - Playback (Spotify app)
 
     @discardableResult
-    func play(uri: String) -> Bool {
-        Self.appleScript("tell application \"Spotify\" to play track \"\(uri)\"") != nil
+    func play(uri: String) async -> Bool {
+        await Self.appleScript("tell application \"Spotify\" to play track \"\(uri)\"") != nil
     }
 
-    func toggleShuffle() -> Bool? {
-        guard let value = Self.appleScript("tell application \"Spotify\"\nset shuffling to not shuffling\nreturn shuffling\nend tell") else { return nil }
+    func toggleShuffle() async -> Bool? {
+        guard let value = await Self.appleScript("tell application \"Spotify\"\nset shuffling to not shuffling\nreturn shuffling\nend tell") else { return nil }
         return value == "true"
     }
 
+    /// AppleScript runs on its own serial queue: launching Spotify can take seconds and must
+    /// not block the notch UI.
+    private static let scriptQueue = DispatchQueue(label: "io.otron.notch.applescript")
+
     @discardableResult
-    static func appleScript(_ source: String) -> String? {
+    static func appleScript(_ source: String) async -> String? {
+        await withCheckedContinuation { continuation in
+            scriptQueue.async { continuation.resume(returning: runAppleScript(source)) }
+        }
+    }
+
+    private nonisolated static func runAppleScript(_ source: String) -> String? {
         var error: NSDictionary?
         let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
         if let error {

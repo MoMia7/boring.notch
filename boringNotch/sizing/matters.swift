@@ -18,8 +18,15 @@ let openNotchSize: CGSize = .init(width: 640, height: 190)
 let agentOpenNotchSize: CGSize = .init(width: openNotchSize.width, height: (openNotchSize.height * 1.5).rounded())
 let windowSize: CGSize = .init(width: openNotchSize.width, height: agentOpenNotchSize.height + shadowPadding)
 
+/// Home gets a little extra room for the one-line agent strip under the player.
+let homeOpenNotchSize: CGSize = .init(width: openNotchSize.width, height: openNotchSize.height + 38)
+
 @MainActor func openNotchSize(for view: NotchViews) -> CGSize {
-    view == .agent ? agentOpenNotchSize : openNotchSize
+    switch view {
+    case .agent: return agentOpenNotchSize
+    case .home: return homeOpenNotchSize
+    case .shelf: return openNotchSize
+    }
 }
 let cornerRadiusInsets: (opened: (top: CGFloat, bottom: CGFloat), closed: (top: CGFloat, bottom: CGFloat)) = (opened: (top: 19, bottom: 24), closed: (top: 6, bottom: 14))
 

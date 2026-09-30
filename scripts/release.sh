@@ -39,4 +39,32 @@ ditto "$APP" "$STAGE/Notch Agent.app"
 ln -s /Applications "$STAGE/Applications"
 hdiutil create -volname "Notch Agent" -srcfolder "$STAGE" -ov -format UDZO "$OUT/Notch-Agent.dmg" >/dev/null
 shasum -a 256 "$OUT/Notch-Agent.dmg"
-echo "Built $OUT/Notch-Agent.dmg"
+
+# Sparkle: sign the DMG (EdDSA key in the login keychain, account "notch-agent") and add
+# it to appcast.xml, which installed copies check daily. Commit appcast.xml after the
+# GitHub release is published.
+SIGN_UPDATE=$(find "$DERIVED/SourcePackages/artifacts" -path '*Sparkle/bin/sign_update' -not -path '*old_dsa*' | head -1)
+INFO="$APP/Contents/Info.plist"
+VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$INFO")
+BUILD=$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$INFO")
+SIGNATURE=$("$SIGN_UPDATE" --account notch-agent "$OUT/Notch-Agent.dmg")
+python3 - "$REPO/appcast.xml" "$VERSION" "$BUILD" "$SIGNATURE" <<'PY'
+import sys, re, email.utils
+path, version, build, signature = sys.argv[1:5]
+url = f"https://github.com/MoMia7/boring.notch/releases/download/v{version}/Notch-Agent.dmg"
+item = f"""    <item>
+      <title>Notch Agent {version}</title>
+      <pubDate>{email.utils.formatdate(localtime=True)}</pubDate>
+      <sparkle:version>{build}</sparkle:version>
+      <sparkle:shortVersionString>{version}</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:releaseNotesLink>https://github.com/MoMia7/boring.notch/releases/tag/v{version}</sparkle:releaseNotesLink>
+      <enclosure url="{url}" {signature} type="application/octet-stream"/>
+    </item>
+"""
+xml = open(path).read()
+xml = re.sub(r"    <item>\s*<title>Notch Agent " + re.escape(version) + r"</title>.*?</item>\n", "", xml, flags=re.S)
+xml = xml.replace("    <title>Notch Agent</title>\n", "    <title>Notch Agent</title>\n" + item, 1)
+open(path, "w").write(xml)
+PY
+echo "Built $OUT/Notch-Agent.dmg (v$VERSION build $BUILD); appcast.xml updated"

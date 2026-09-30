@@ -23,9 +23,6 @@ struct DynamicNotchApp: App {
     init() {
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
-        // This fork is built locally; upstream updates would replace the agent build.
-        updaterController.updater.automaticallyChecksForUpdates = false
-        updaterController.updater.automaticallyDownloadsUpdates = false
 
         // Initialize the settings window controller with the updater controller
         SettingsWindowController.shared.setUpdaterController(updaterController)
@@ -511,6 +508,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         setupDragDetectors()
 
+        // Notch Agent replaces boring.notch (carrying its settings over) so both don't fight over the notch.
+        Task { await SetupStatus.shared.replaceLegacyIfInstalled() }
+
         if coordinator.firstLaunch {
             DispatchQueue.main.async {
                 self.showOnboardingWindow()
@@ -656,12 +656,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 defer: false
             )
             window.center()
-            window.title = "Onboarding"
+            window.title = "Welcome to Notch Agent"
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
             window.contentView = NSHostingView(
-                rootView: OnboardingView(
-                    step: step,
+                rootView: NotchAgentOnboarding(
+                    initialStep: step == .musicPermission ? .music : .welcome,
                     onFinish: {
                         window.orderOut(nil)
 //                        NSApp.setActivationPolicy(.accessory)

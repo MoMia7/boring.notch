@@ -78,9 +78,10 @@ final class VoiceInput: ObservableObject {
             Task { @MainActor in self?.level = value }
         }
         session = newSession
+        let startTask = newSession.launch()
         Task {
             do {
-                try await newSession.start()
+                try await startTask.value
             } catch {
                 log.error("voice start failed: \(error.localizedDescription, privacy: .public)")
                 state = .failed(error.localizedDescription)
@@ -134,7 +135,11 @@ private final class VoiceSession: @unchecked Sendable {
     private var transcriber: SpeechTranscriber?
     private var continuation: AsyncStream<AnalyzerInput>.Continuation?
     private var resultsTask: Task<Void, Never>?
+    private var startTask: Task<Void, Error>?
     private var converter: AVAudioConverter?
+    /// Set once the model assets are confirmed installed; later presses skip the check.
+    private static let assetsLock = NSLock()
+    nonisolated(unsafe) private static var cachedLocale: Locale?
     private let lock = NSLock()
     private var finalized = ""
     private var volatile = ""
@@ -159,14 +164,30 @@ private final class VoiceSession: @unchecked Sendable {
 
     @discardableResult
     static func ensureAssets() async throws -> SpeechTranscriber {
-        let transcriber = makeTranscriber(locale: await locale())
+        assetsLock.lock()
+        let cached = cachedLocale
+        assetsLock.unlock()
+        if let cached { return makeTranscriber(locale: cached) }
+
+        let locale = await locale()
+        let transcriber = makeTranscriber(locale: locale)
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcriber]) {
             try await request.downloadAndInstall()
         }
+        assetsLock.lock()
+        cachedLocale = locale
+        assetsLock.unlock()
         return transcriber
     }
 
-    func start() async throws {
+    /// Starts capture + analysis; `finish()` waits for this so a quick release never loses audio.
+    func launch() -> Task<Void, Error> {
+        let task = Task { try await self.start() }
+        startTask = task
+        return task
+    }
+
+    private func start() async throws {
         // Start capturing immediately so the first word isn't clipped; buffers queue in the stream.
         let (stream, continuation) = AsyncStream<AnalyzerInput>.makeStream(bufferingPolicy: .unbounded)
         self.continuation = continuation
@@ -240,6 +261,9 @@ private final class VoiceSession: @unchecked Sendable {
 
     func finish() async -> String {
         stopAudio()
+        // If the key was released while the analyzer was still starting, let it catch up and
+        // flush the audio captured so far before closing the stream.
+        _ = try? await startTask?.value
         continuation?.finish()
         do {
             try await analyzer?.finalizeAndFinishThroughEndOfInput()
@@ -254,6 +278,7 @@ private final class VoiceSession: @unchecked Sendable {
 
     func cancel() async {
         stopAudio()
+        _ = try? await startTask?.value
         continuation?.finish()
         await analyzer?.cancelAndFinishNow()
         resultsTask?.cancel()

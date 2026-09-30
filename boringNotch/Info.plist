@@ -14,7 +14,11 @@
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/MoMia7/boring.notch/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>B1Y47t8C/v8ImurYA+9arEsuCrpxwJSviekiflMElbI=</string>
+	<string>tOKbxguj1HVbddhx27riwM+OOWYv5hzY7EvsLf0FaH0=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict/>

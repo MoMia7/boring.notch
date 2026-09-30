@@ -1,7 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Notch Agent update feed. Intentionally empty: updates are published as GitHub releases. -->
+<!-- Notch Agent update feed (Sparkle). Entries are added by scripts/release.sh. -->
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
     <title>Notch Agent</title>
+    <item>
+      <title>Notch Agent 0.2.0</title>
+      <pubDate>Wed, 30 Sep 2026 10:01:09 +0200</pubDate>
+      <sparkle:version>2</sparkle:version>
+      <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:releaseNotesLink>https://github.com/MoMia7/boring.notch/releases/tag/v0.2.0</sparkle:releaseNotesLink>
+      <enclosure url="https://github.com/MoMia7/boring.notch/releases/download/v0.2.0/Notch-Agent.dmg" sparkle:edSignature="J0gpvgHOS9obL1281fu6uuRjrOV4echH+B+A481jqhU2Z7KfKh+TfbiiXVk1BGr0n/EqPu64X+wWx2NFK07sBA==" length="8869566" type="application/octet-stream"/>
+    </item>
   </channel>
 </rss>

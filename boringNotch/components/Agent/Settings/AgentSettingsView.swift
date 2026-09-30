@@ -41,6 +41,11 @@ struct AgentSettings: View {
         Form {
             switch page {
             case .agent:
+                Section {
+                    SetupChecklist()
+                } header: {
+                    Text("Setup")
+                }
                 connectionSection
             case .models:
                 modelSection

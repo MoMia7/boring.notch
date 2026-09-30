@@ -123,6 +123,11 @@
 		A6E0000000000000000000B7 /* AmbientMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E0000000000000000000A7 /* AmbientMonitor.swift */; };
 		A6E0000000000000000000B8 /* NotchMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E0000000000000000000A8 /* NotchMark.swift */; };
 		A6E0000000000000000000B9 /* VoiceInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E0000000000000000000A9 /* VoiceInput.swift */; };
+		A6E000000000000000000BA3 /* AgentHomeStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AA3 /* AgentHomeStrip.swift */; };
+		A6E000000000000000000BA4 /* RequestParsing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AA4 /* RequestParsing.swift */; };
+		A6E000000000000000000BA5 /* InstantPlanning.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AA5 /* InstantPlanning.swift */; };
+		A6E000000000000000000BA6 /* SetupChecklist.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AA6 /* SetupChecklist.swift */; };
+		A6E000000000000000000BA7 /* NotchAgentOnboarding.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AA7 /* NotchAgentOnboarding.swift */; };
 		A6E000000000000000000BA0 /* PushToTalk.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AA0 /* PushToTalk.swift */; };
 		A6E000000000000000000BA1 /* SpotifyClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AA1 /* SpotifyClient.swift */; };
 		A6E000000000000000000BA2 /* SpotifySettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AA2 /* SpotifySettingsSection.swift */; };
@@ -307,6 +312,11 @@
 		A6E0000000000000000000A7 /* AmbientMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientMonitor.swift; sourceTree = "<group>"; };
 		A6E0000000000000000000A8 /* NotchMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchMark.swift; sourceTree = "<group>"; };
 		A6E0000000000000000000A9 /* VoiceInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInput.swift; sourceTree = "<group>"; };
+		A6E000000000000000000AA3 /* AgentHomeStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentHomeStrip.swift; sourceTree = "<group>"; };
+		A6E000000000000000000AA4 /* RequestParsing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Parsing/RequestParsing.swift; sourceTree = "<group>"; };
+		A6E000000000000000000AA5 /* InstantPlanning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstantPlanning.swift; sourceTree = "<group>"; };
+		A6E000000000000000000AA6 /* SetupChecklist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupChecklist.swift; sourceTree = "<group>"; };
+		A6E000000000000000000AA7 /* NotchAgentOnboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../Onboarding/NotchAgentOnboarding.swift; sourceTree = "<group>"; };
 		A6E000000000000000000AA0 /* PushToTalk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushToTalk.swift; sourceTree = "<group>"; };
 		A6E000000000000000000AA1 /* SpotifyClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyClient.swift; sourceTree = "<group>"; };
 		A6E000000000000000000AA2 /* SpotifySettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/SpotifySettingsSection.swift; sourceTree = "<group>"; };
@@ -407,6 +417,11 @@
 				A6E0000000000000000000A7 /* AmbientMonitor.swift */,
 				A6E0000000000000000000A8 /* NotchMark.swift */,
 				A6E0000000000000000000A9 /* VoiceInput.swift */,
+				A6E000000000000000000AA3 /* AgentHomeStrip.swift */,
+				A6E000000000000000000AA4 /* RequestParsing.swift */,
+				A6E000000000000000000AA5 /* InstantPlanning.swift */,
+				A6E000000000000000000AA6 /* SetupChecklist.swift */,
+				A6E000000000000000000AA7 /* NotchAgentOnboarding.swift */,
 				A6E000000000000000000AA0 /* PushToTalk.swift */,
 				A6E000000000000000000AA1 /* SpotifyClient.swift */,
 				A6E000000000000000000AA2 /* SpotifySettingsSection.swift */,
@@ -1055,6 +1070,11 @@
 				A6E0000000000000000000B7 /* AmbientMonitor.swift in Sources */,
 				A6E0000000000000000000B8 /* NotchMark.swift in Sources */,
 				A6E0000000000000000000B9 /* VoiceInput.swift in Sources */,
+				A6E000000000000000000BA3 /* AgentHomeStrip.swift in Sources */,
+				A6E000000000000000000BA4 /* RequestParsing.swift in Sources */,
+				A6E000000000000000000BA5 /* InstantPlanning.swift in Sources */,
+				A6E000000000000000000BA6 /* SetupChecklist.swift in Sources */,
+				A6E000000000000000000BA7 /* NotchAgentOnboarding.swift in Sources */,
 				A6E000000000000000000BA0 /* PushToTalk.swift in Sources */,
 				A6E000000000000000000BA1 /* SpotifyClient.swift in Sources */,
 				A6E000000000000000000BA2 /* SpotifySettingsSection.swift in Sources */,
@@ -1114,14 +1134,14 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = BoringNotchXPCHelper/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = BoringNotchXPCHelper;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.otron.notchagent.BoringNotchXPCHelper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -1139,14 +1159,14 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = BoringNotchXPCHelper/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = BoringNotchXPCHelper;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.otron.notchagent.BoringNotchXPCHelper;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -1293,7 +1313,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"boringNotch/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
@@ -1315,6 +1335,8 @@
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "This app uses the calendar to display your calendar events";
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app uses the camera to display a live camera view";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Hold the push-to-talk key to speak to the Notch agent. Audio is transcribed on this Mac.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Notch Agent shows your events and can add events you ask for.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Notch Agent can add reminders you ask for.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Your speech is transcribed on-device to send requests to the Notch agent.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSRemindersUsageDescription = "This app uses Reminders to display your scheduled reminder in the calendar";
@@ -1323,7 +1345,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.otron.notchagent;
 				PRODUCT_NAME = "Notch Agent";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -1350,7 +1372,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"boringNotch/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
@@ -1371,6 +1393,8 @@
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "This app uses the calendar to display your calendar events";
 				INFOPLIST_KEY_NSCameraUsageDescription = "This app uses the camera to display a live camera view";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Hold the push-to-talk key to speak to the Notch agent. Audio is transcribed on this Mac.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Notch Agent shows your events and can add events you ask for.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Notch Agent can add reminders you ask for.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Your speech is transcribed on-device to send requests to the Notch agent.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSRemindersUsageDescription = "This app uses Reminders to display your scheduled reminder in the calendar";
@@ -1379,7 +1403,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.otron.notchagent;
 				PRODUCT_NAME = "Notch Agent";
 				PROVISIONING_PROFILE_SPECIFIER = "";

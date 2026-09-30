@@ -82,6 +82,9 @@ struct SettingsView: View {
                 }
             }
             .listStyle(SidebarListStyle())
+            .onReceive(NotificationCenter.default.publisher(for: .openAgentSettingsPage)) { note in
+                if let page = note.userInfo?["page"] as? String { selectedTab = "Agent." + page }
+            }
             .tint(.effectiveAccent)
             .toolbar(removing: .sidebarToggle)
             .navigationSplitViewColumnWidth(200)

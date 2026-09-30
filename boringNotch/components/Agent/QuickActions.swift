@@ -78,7 +78,7 @@ final class QuickActions {
         },
         Action(id: "play_music", description: "Play a specific song, artist, album, playlist or liked songs (music, Spotify)", label: "Playing", icon: "music.note") { _, _ in },
         Action(id: "spotify_shuffle", description: "Turn shuffle on or off", label: "Shuffle", icon: "shuffle", dynamicRun: {
-            guard let on = SpotifyClient.shared.toggleShuffle() else { return nil }
+            guard let on = await SpotifyClient.shared.toggleShuffle() else { return nil }
             return on ? "Shuffle on" : "Shuffle off"
         }) { _, _ in },
         Action(id: "like_song", description: "Like, save or heart the song that is playing now", label: "Liked", icon: "heart.fill", dynamicRun: {
@@ -90,6 +90,13 @@ final class QuickActions {
             guard !music.songTitle.isEmpty else { return "Nothing is playing" }
             return music.artistName.isEmpty ? music.songTitle : "\(music.songTitle) — \(music.artistName)"
         }) { _, _ in },
+        Action(id: "add_reminder", description: "Create a reminder or to-do, optionally at a time or date", label: "Reminder", icon: "checklist") { _, _ in },
+        Action(id: "add_event", description: "Add an event or block time on the calendar at a date/time", label: "Event", icon: "calendar.badge.plus") { _, _ in },
+        Action(id: "set_timer", description: "Start a countdown timer for a length of time", label: "Timer", icon: "timer") { _, _ in },
+        Action(id: "cancel_timer", description: "Stop or cancel the running timer", label: "Timer cancelled", icon: "timer", dynamicRun: {
+            AgentTimers.shared.cancelNext()
+        }) { _, _ in },
+        Action(id: "run_shortcut", description: "Run one of the user's Shortcuts (Shortcuts app) by name", label: "Ran shortcut", icon: "square.stack.3d.up.fill") { _, _ in },
         Action(id: "open_downloads", description: "Open the Downloads folder", label: "Opened Downloads", icon: "arrow.down.circle") { _, _ in
             await AgentManager.shared.runShell("open ~/Downloads")
         },
@@ -108,7 +115,7 @@ final class QuickActions {
     ]
 
     private func playMusic(request: String, kind: String) async -> (label: String, icon: String)? {
-        let (query, artist) = Self.musicQuery(from: request)
+        let (query, artist) = RequestParsing.musicQuery(from: request)
         let spotify = SpotifyClient.shared
         guard kind != "none", !query.isEmpty || kind == "liked_songs" else { return nil }
 
@@ -138,7 +145,7 @@ final class QuickActions {
             choice = await pickBest(request: request, query: query, from: await spotify.search(q, kind: type),
                                     question: "Which result best matches what the user asked to play?")
         }
-        guard let choice, spotify.play(uri: choice.uri) else { return nil }
+        guard let choice, await spotify.play(uri: choice.uri) else { return nil }
         log.notice("ran play_music kind=\(kind, privacy: .public)")
         let label = choice.subtitle.isEmpty ? "Playing \(choice.name)" : "Playing \(choice.name) — \(choice.subtitle)"
         return (label, "music.note")
@@ -161,31 +168,6 @@ final class QuickActions {
         return (result["pick"]?.confidence ?? 0) >= 0.3 ? candidates[index] : candidates.first
     }
 
-    /// "Play Bohemian Rhapsody by Queen on Spotify" → ("Bohemian Rhapsody", "Queen").
-    static func musicQuery(from text: String) -> (query: String, artist: String?) {
-        var s = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let patterns = [
-            #"^(hey\s+)?(notch[,\s]+)?(please\s+)?(can you\s+|could you\s+)?(play|put on|queue up|queue|start|listen to|shuffle|throw on)\s+"#,
-            #"^(me\s+)?(some\s+)?(the\s+)?(my\s+)?(song|track|album|playlist|artist)\s+"#,
-            #"^(my|the)\s+"#,
-            #"^(some|a little|a bit of|a few)\s+"#,
-            #"[.!?]+$"#,
-            #"\s+(on|in|from|with|using)\s+spotify$"#,
-            #"\s+(playlist|album|song|track)$"#,
-            #",?\s*please$"#,
-        ]
-        for pattern in patterns {
-            s = s.replacingOccurrences(of: pattern, with: "", options: [.regularExpression, .caseInsensitive])
-                .trimmingCharacters(in: .whitespaces)
-        }
-        if let range = s.range(of: #"\s+by\s+"#, options: [.regularExpression, .caseInsensitive]) {
-            let title = String(s[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
-            let artist = String(s[range.upperBound...]).trimmingCharacters(in: .whitespaces)
-            if !title.isEmpty, !artist.isEmpty { return (title, artist) }
-        }
-        return (s, nil)
-    }
-
     /// Level words for set_volume / set_brightness. Ids are "p_<percent>". Explicit numbers are
     /// parsed from the text instead (see `statedPercent`).
     private static let levelOptions: [(String, String)] = [
@@ -197,14 +179,6 @@ final class QuickActions {
         ("p_100", "Max, maximum, full, all the way up"),
         ("none", "No level is stated in words"),
     ]
-
-    /// A 0–100 number stated in the request ("75", "75%", "volume 33"), if any.
-    static func statedPercent(in text: String) -> Float? {
-        guard let match = text.range(of: #"\b(\d{1,3})(\.\d+)?\s*(%|percent)?"#, options: .regularExpression) else { return nil }
-        let digits = text[match].prefix { $0.isNumber || $0 == "." }
-        guard let value = Float(digits), (0...100).contains(value) else { return nil }
-        return value
-    }
 
     private var appCache: [(id: String, name: String, url: URL)] = []
     private var appCacheDate = Date.distantPast
@@ -218,7 +192,16 @@ final class QuickActions {
         }
 
         let apps = installedApps()
-        var actionOptions = actions.map { ($0.id, $0.description) }
+        if shortcuts.isEmpty || Date().timeIntervalSince(shortcutsFetchedAt) > 600 {
+            Task { await refreshShortcuts() }
+        }
+        var actionOptions = actions.map { action -> (String, String) in
+            // Name the user's shortcuts so "morning routine" routes here without the word "run".
+            if action.id == "run_shortcut", !shortcuts.isEmpty {
+                return (action.id, action.description + ", e.g. " + shortcuts.prefix(25).joined(separator: ", "))
+            }
+            return (action.id, action.description)
+        }
         actionOptions.append(("agent", "Anything else: questions, multi-step tasks, files, calendar, reminders, messages, or anything needing text, names, numbers or times"))
         var appOptions = apps.map { ($0.id, $0.name) }
         appOptions.append(("none", "No application is mentioned"))
@@ -246,8 +229,21 @@ final class QuickActions {
         guard let actionID = result["action"]?.choice, actionID != "agent",
               (result["action"]?.confidence ?? 0) >= 0.75,
               let action = actions.first(where: { $0.id == actionID }) else { return nil }
-        if action.id == "play_music" {
+        // Actions whose whole point is a specific time, text or name skip the "specifics" guard.
+        switch action.id {
+        case "play_music":
             return await playMusic(request: request, kind: result["music_kind"]?.choice ?? "track")
+        case "add_reminder":
+            return await InstantPlanning.addReminder(from: request).map { ($0, action.icon) }
+        case "add_event":
+            return await InstantPlanning.addEvent(from: request).map { ($0, action.icon) }
+        case "set_timer":
+            guard let seconds = RequestParsing.duration(in: request) else { return nil }
+            return (AgentTimers.shared.start(seconds, label: RequestParsing.timerLabel(from: request)), action.icon)
+        case "run_shortcut":
+            return await runShortcut(request: request).map { ($0, action.icon) }
+        default:
+            break
         }
         guard (result["specifics"]?.probability ?? 1) < 0.5 else { return nil }
         if let dynamicRun = action.dynamicRun {
@@ -259,7 +255,7 @@ final class QuickActions {
         var level: Float = 0
         if action.usesLevel {
             // Numbers are read in code (exact); Jev only resolves words like "max" or "half".
-            if let number = Self.statedPercent(in: request) {
+            if let number = RequestParsing.statedPercent(in: request) {
                 level = number / 100
             } else {
                 guard let raw = result["level"]?.choice, let percent = Float(raw.dropFirst(2)),
@@ -288,7 +284,45 @@ final class QuickActions {
         var words = installedApps().map(\.name)
         words += ["Spotify", "Notch", "dark mode", "Downloads"]
         words += SpotifyClient.shared.cachedPlaylistNames
+        words += shortcuts
         return Array(Set(words)).sorted()
+    }
+
+    // MARK: - Shortcuts
+
+    private var shortcuts: [String] = []
+    private var shortcutsFetchedAt = Date.distantPast
+
+    func refreshShortcuts() async {
+        let names = await XPCHelperClient.shared.listShortcuts()
+        guard !names.isEmpty else { return }
+        shortcuts = names
+        shortcutsFetchedAt = Date()
+    }
+
+    private func runShortcut(request: String) async -> String? {
+        if shortcuts.isEmpty { await refreshShortcuts() }
+        guard !shortcuts.isEmpty else { return nil }
+        let query = request.lowercased()
+            .replacingOccurrences(of: #"^(hey\s+)?(notch[,\s]+)?(please\s+)?(run|start|do|trigger|launch)\s+(my\s+|the\s+)?"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\s+shortcut[.!?]*$|[.!?]+$"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+        var name = shortcuts.first { $0.lowercased() == query }
+        if name == nil {
+            var options = shortcuts.prefix(250).enumerated().map { ("s\($0.offset)", $0.element) }
+            options.append(("none", "None of these"))
+            if let result = await DecisionEngine.shared.decide(
+                state: ["request": request],
+                questions: [("shortcut", .choice("Which of the user's Shortcuts does the request mean?", options))],
+                timeout: 1.5
+            ), let id = result["shortcut"]?.choice, id != "none", (result["shortcut"]?.confidence ?? 0) >= 0.5,
+               let index = Int(id.dropFirst()), shortcuts.indices.contains(index) {
+                name = shortcuts[index]
+            }
+        }
+        guard let name, await XPCHelperClient.shared.runShortcut(name) else { return nil }
+        log.notice("ran shortcut")
+        return "Ran \(name)"
     }
 
     // MARK: - Installed apps

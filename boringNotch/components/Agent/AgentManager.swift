@@ -146,6 +146,10 @@ final class AgentManager: ObservableObject {
     private var lastCountedRun: Double = 0
     private var statusTask: Task<Void, Never>?
     private var showResultWhenDone = false
+    /// Last time a request was sent or finished; after a long gap we start a fresh
+    /// conversation so the model doesn't re-read an ever-growing history.
+    private var lastActivityAt = Date()
+    private static let freshSessionAfter: TimeInterval = 10 * 60
 
     private var sessionID: String = Defaults[.agentSessionID]
     private var roles: [String: String] = [:]  // messageID -> role
@@ -179,12 +183,16 @@ final class AgentManager: ObservableObject {
             if let quick {
                 items.append(AgentItem(id: UUID().uuidString, kind: .user, text: trimmed))
                 items.append(AgentItem(id: UUID().uuidString, kind: .quick(icon: quick.icon), text: quick.label))
-                if showResult { flashQuickResult(icon: quick.icon, label: quick.label) }
+                if showResult { flashResult(icon: quick.icon, label: quick.label) }
                 return
             }
             showResultWhenDone = showResult
             do {
-                if sessionID.isEmpty { try await createSession() }
+                let idle = Date().timeIntervalSince(lastActivityAt) > Self.freshSessionAfter
+                if sessionID.isEmpty || (idle && !items.isEmpty && !isBusy && permissions.isEmpty) {
+                    try await createSession()
+                }
+                lastActivityAt = Date()
                 isBusy = true
                 var body: [String: Any] = ["parts": [["type": "text", "text": trimmed]]]
                 let override = Defaults[.agentModelOverride]
@@ -289,6 +297,7 @@ final class AgentManager: ObservableObject {
     }
 
     private func finishTask() {
+        lastActivityAt = Date()
         statusTask?.cancel()
         statusTask = nil
         Task { await pollModelStatus() }  // pick up the final generation stats
@@ -315,12 +324,13 @@ final class AgentManager: ObservableObject {
 
     func dismissFollowUp() { followUp = nil }
 
-    private func flashQuickResult(icon: String, label: String) {
+    /// Briefly shows a result inside the closed notch (instant actions, timers).
+    func flashResult(icon: String, label: String, duration: TimeInterval = 2.6) {
         let id = UUID()
         quickResult = (id, icon, label)
         quickResultTask?.cancel()
         quickResultTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(2.6))
+            try? await Task.sleep(for: .seconds(duration))
             guard !Task.isCancelled, self?.quickResult?.id == id else { return }
             self?.quickResult = nil
         }
