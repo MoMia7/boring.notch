@@ -15,6 +15,10 @@ Notch Agent is a fork of [boring.notch](https://github.com/TheBoredTeam/boring.n
   - "play Bohemian Rhapsody", "play my gym playlist" (Spotify)
   - "remind me to call mom at 6", "block 2 to 3pm tomorrow for gym", "timer 10 minutes" (a countdown appears in the notch)
   - any of your **Shortcuts** by name ("run my morning routine")
+  - any **menu command of the app you're in**, e.g. "export this as PDF", "zoom in", "new incognito window", "show the sidebar"
+  - "search this" (the selected text), "copy this link"
+- **It knows what "this" is.** Your selection, the Finder files you've selected, the web page you're on, and the current window are captured when you press the key. "Summarize this" and "what does this error mean" just work. Selected text goes only to your chosen AI model, never to Jev.
+- **It learns.** When the agent finishes a task using simple commands, the notch offers **Make this instant**. After that, the same request skips the AI and runs in a few hundred milliseconds. Destructive commands are never learned. Learned actions are listed in Settings → Jev.
 - **A real agent for everything else.** Other requests go to [opencode](https://opencode.ai) running in the background, using ChatGPT, an API key, or a local model. Every shell command or file edit asks for your approval in the notch.
 - **Live status.** The notch shows the tool being run, progress, retries, and elapsed time. Results pop up when you weren't looking.
 - **Ambient nudges (optional).** Offers to help with new downloads, meetings about to start, and low battery.

@@ -142,6 +142,8 @@ final class PushToTalk {
             try? await Task.sleep(for: .seconds(self?.holdThreshold ?? 0.1))
             guard let self, !Task.isCancelled, self.pressedAt != nil else { return }
             self.confirmed = true
+            // Grab "this" (selection, window, page) and the app's menus before anything changes focus.
+            ContextCapture.shared.begin(allowCopyFallback: true)
             self.duck()
             NotificationCenter.default.post(name: .agentVoiceStarted, object: nil)
         }

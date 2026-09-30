@@ -64,6 +64,7 @@ struct AgentSettings: View {
                 VoiceSettingsSection()
             case .jev:
                 JevSettingsSection()
+                LearnedActionsSection()
             case .spotify:
                 SpotifySettingsSection()
             }
@@ -629,6 +630,45 @@ struct VoiceSettingsSection: View {
             Text("Push to talk")
         } footer: {
             Text("Hold the key, speak, and release to send. Speech is transcribed on this Mac with Apple's on-device model (macOS 26 or later); audio never leaves the computer. Holding the key together with other keys keeps its normal shortcut behavior.")
+                .foregroundStyle(.secondary)
+                .font(.caption)
+        }
+    }
+}
+
+/// Instant actions the agent taught Jev (System 2 → System 1).
+struct LearnedActionsSection: View {
+    @ObservedObject private var learned = LearnedActions.shared
+
+    var body: some View {
+        Section {
+            if learned.actions.isEmpty {
+                Text("None yet. When the agent finishes a task with simple commands, the notch offers “Make this instant”.")
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(learned.actions) { action in
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(action.title)
+                        Text(action.commands.joined(separator: "  ·  "))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .help(action.commands.joined(separator: "\n"))
+                    }
+                    Spacer()
+                    Text(action.uses == 1 ? "used once" : "used \(action.uses)×")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button(role: .destructive) { learned.delete(action) } label: { Image(systemName: "trash") }
+                        .buttonStyle(.borderless)
+                }
+            }
+        } header: {
+            Text("Learned actions")
+        } footer: {
+            Text("Learned actions replay their commands directly, without the AI model and without asking again. Destructive commands (rm, sudo, kill, overwriting files, …) are never offered.")
                 .foregroundStyle(.secondary)
                 .font(.caption)
         }

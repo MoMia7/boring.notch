@@ -73,6 +73,9 @@ struct AgentView: View {
                         if let followUp = agent.followUp, followUp.itemID == item.id {
                             FollowUpBanner(followUp: followUp)
                         }
+                        if let offer = agent.learnOffer, offer.itemID == item.id {
+                            LearnOfferCard(offer: offer)
+                        }
                     }
                     if agent.isBusy {
                         AgentActivityView().id("busy")
@@ -83,6 +86,7 @@ struct AgentView: View {
             .onChange(of: agent.items) { _, _ in scrollToEnd(proxy) }
             .onChange(of: agent.isBusy) { _, _ in scrollToEnd(proxy) }
             .onChange(of: agent.runSummaries) { _, _ in scrollToEnd(proxy) }
+            .onChange(of: agent.learnOffer) { _, _ in scrollToEnd(proxy) }
             .onAppear { scrollToEnd(proxy) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -297,6 +301,56 @@ private struct AgentRow: View {
         case "error": return .red
         default: return .gray
         }
+    }
+}
+
+/// "Make this instant?": shows the exact commands that will be replayed before saving.
+private struct LearnOfferCard: View {
+    let offer: LearnCandidate
+    @State private var expanded = false
+    private var agent: AgentManager { AgentManager.shared }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Image(systemName: "bolt.fill").foregroundStyle(.yellow)
+                Text("Make this instant next time?").foregroundStyle(.white.opacity(0.9))
+                Spacer(minLength: 4)
+                Button(expanded ? "Hide" : "Show commands") { withAnimation(.smooth) { expanded.toggle() } }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.gray)
+                chip("Make instant", tint: .yellow.opacity(0.35)) { agent.acceptLearnOffer() }
+                Button { agent.dismissLearnOffer() } label: {
+                    Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(.gray)
+                }
+                .buttonStyle(.plain)
+            }
+            if expanded {
+                ForEach(offer.commands, id: \.self) { command in
+                    Text(command)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                }
+            }
+        }
+        .font(.system(size: 10.5))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 7).fill(Color.yellow.opacity(0.08)))
+    }
+
+    private func chip(_ label: String, tint: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(tint))
+        }
+        .buttonStyle(.plain)
     }
 }
 

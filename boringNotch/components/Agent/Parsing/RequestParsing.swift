@@ -48,6 +48,50 @@ enum RequestParsing {
         return (s, nil)
     }
 
+    // MARK: Menu commands
+
+    /// Orders menu paths ("View › Zoom In") by word overlap with the request, keeping the
+    /// menu order for ties, and returns at most `limit` (Jev allows 255 options per question).
+    static func rankMenuItems(_ items: [String], for request: String, limit: Int = 240) -> [String] {
+        guard items.count > limit else { return items }
+        let words = Set(request.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count >= 3 })
+        func score(_ item: String) -> Int {
+            let itemWords = item.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init)
+            var total = 0
+            for word in words {
+                for candidate in itemWords where candidate.hasPrefix(String(word.prefix(4))) || word.hasPrefix(String(candidate.prefix(4))) {
+                    total += candidate == word ? 3 : 1
+                }
+            }
+            return total
+        }
+        return items.enumerated()
+            .map { (index: $0.offset, item: $0.element, score: score($0.element)) }
+            .sorted { $0.score != $1.score ? $0.score > $1.score : $0.index < $1.index }
+            .prefix(limit)
+            .map(\.item)
+    }
+
+    /// Whether a request points at something on screen ("summarize this", "these files").
+    static func mentionsOnScreen(_ text: String) -> Bool {
+        text.range(of: #"\b(this|these|that|those|it|here|selected|selection|highlighted|page|tab|site|article|website|email|file|files|window|screen)\b"#,
+                   options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    // MARK: Learned actions
+
+    /// Commands that are never learned: anything destructive, privileged or networked-to-shell.
+    static let unsafeCommandPatterns = [
+        #"\brm\b"#, #"\bsudo\b"#, #"\bmv\b.*\s/dev/null"#, #"\bdd\b"#, #"\bmkfs"#, #"\bdiskutil\s+(erase|partition)"#,
+        #"\bkill(all)?\b"#, #"\bshutdown\b"#, #"\breboot\b"#, #"\bhalt\b"#, #"\blaunchctl\s+(unload|bootout|remove)"#,
+        #"\|\s*(ba|z)?sh\b"#, #"curl[^|]*\|\s*"#, #"(?<![0-9&])>(?!\s*/dev/null|&)"#, #"\bchmod\b"#, #"\bchown\b"#, #"\bgit\s+(push|reset|clean)"#,
+        #"\bdefaults\s+delete"#, #"\bsecurity\s+delete"#, #"\bosascript\b.*\b(delete|empty trash)\b"#,
+    ]
+
+    static func isSafeToLearn(_ command: String) -> Bool {
+        !unsafeCommandPatterns.contains { command.range(of: $0, options: [.regularExpression, .caseInsensitive]) != nil }
+    }
+
     // MARK: Durations (timers)
 
     /// Total seconds for "10 minutes", "1 hour 30 minutes", "90 seconds", "half an hour",

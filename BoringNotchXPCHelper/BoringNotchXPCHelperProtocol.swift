@@ -25,6 +25,10 @@ import Foundation
     func runShortcut(_ name: String, with reply: @escaping (Bool) -> Void)
     func retireApp(bundleIdentifier: String, with reply: @escaping (Bool) -> Void)
     func exportPreferences(bundleIdentifier: String, with reply: @escaping (Data?) -> Void)
+    // Notch Agent: menu-bar control and "this" context (Accessibility, outside the sandbox)
+    func menuItems(processIdentifier: Int32, with reply: @escaping ([String]) -> Void)
+    func pressMenuItem(processIdentifier: Int32, path: String, with reply: @escaping (Bool) -> Void)
+    func captureContext(processIdentifier: Int32, allowCopyFallback: Bool, with reply: @escaping (Data?) -> Void)
 }
 
 /*

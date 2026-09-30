@@ -134,6 +134,8 @@ final class AgentManager: ObservableObject {
     /// Keyed by the id of the last assistant item of each finished task.
     @Published private(set) var runSummaries: [String: AgentRunSummary] = [:]
     @Published private(set) var followUp: AgentFollowUp?
+    /// "Make this instant?" offer for the last finished task (System 2 teaches System 1).
+    @Published private(set) var learnOffer: LearnCandidate?
     /// Brief result of an instant action shown inside the closed notch.
     @Published private(set) var quickResult: (id: UUID, icon: String, label: String)?
     private var quickResultTask: Task<Void, Never>?
@@ -176,6 +178,10 @@ final class AgentManager: ObservableObject {
         guard !trimmed.isEmpty else { return }
         Task {
             followUp = nil
+            learnOffer = nil
+            // Typed requests come from the notch; capture what's behind it (no ⌘C fallback,
+            // the notch has focus). Push-to-talk already captured when the key went down.
+            if !showResult { ContextCapture.shared.begin(allowCopyFallback: false) }
             // Simple requests ("mute", "open Slack") are handled instantly without the LLM.
             if showResult { isRoutingVoice = true }
             let quick = await QuickActions.shared.tryHandle(trimmed)
@@ -194,7 +200,15 @@ final class AgentManager: ObservableObject {
                 }
                 lastActivityAt = Date()
                 isBusy = true
-                var body: [String: Any] = ["parts": [["type": "text", "text": trimmed]]]
+                var parts: [[String: Any]] = [["type": "text", "text": trimmed]]
+                // "Summarize this", "move these": give the agent what the user is looking at.
+                // Sent as a hidden (synthetic) part so the chat shows only what was said.
+                let refers = QuickActions.shared.lastThisRefers
+                if let screen = await ContextCapture.shared.context(maxWait: 0.3), screen.hasReferent,
+                   (refers != nil && refers != "none") || (refers == nil && RequestParsing.mentionsOnScreen(trimmed)) {
+                    parts.insert(["type": "text", "text": screen.promptBlock(focus: refers), "synthetic": true], at: 0)
+                }
+                var body: [String: Any] = ["parts": parts]
                 let override = Defaults[.agentModelOverride]
                 if let slash = override.firstIndex(of: "/") {
                     body["model"] = ["providerID": String(override[..<slash]),
@@ -206,6 +220,26 @@ final class AgentManager: ObservableObject {
                 appendError("Couldn't reach the agent: \(error.localizedDescription)")
                 if showResult { showResultWhenDone = false; announceResult(dwell: 6) }
             }
+        }
+    }
+
+    /// Runs a command through the harness (no model) and returns its output, or nil on failure.
+    func runShellCapturing(_ command: String) async -> String? {
+        do {
+            if sessionID.isEmpty { try await createSession() }
+            let data = try await request("POST", "/session/\(sessionID)/shell", body: ["agent": "notch", "command": command])
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let parts = json["parts"] as? [[String: Any]] else { return "" }
+            for part in parts where part["type"] as? String == "tool" {
+                let state = part["state"] as? [String: Any] ?? [:]
+                if state["status"] as? String == "error" { return nil }
+                let metadata = state["metadata"] as? [String: Any]
+                if let exit = metadata?["exit"] as? Int, exit != 0 { return nil }
+                return state["output"] as? String ?? ""
+            }
+            return ""
+        } catch {
+            return nil
         }
     }
 
@@ -315,6 +349,9 @@ final class AgentManager: ObservableObject {
         retry = nil
         modelStatus = nil
         Task { await checkDone() }
+        if DecisionEngine.shared.hasJevKey, Defaults[.jevInstantActions] {
+            learnOffer = LearnedActions.shared.candidate(from: items)
+        }
         if showResultWhenDone {
             showResultWhenDone = false
             let reply = items.last(where: { $0.kind == .assistant || $0.kind == .error })?.text ?? ""
@@ -323,6 +360,15 @@ final class AgentManager: ObservableObject {
     }
 
     func dismissFollowUp() { followUp = nil }
+
+    func acceptLearnOffer() {
+        guard let offer = learnOffer else { return }
+        let action = LearnedActions.shared.learn(offer)
+        learnOffer = nil
+        flashResult(icon: "bolt.fill", label: "“\(action.title)” is now instant")
+    }
+
+    func dismissLearnOffer() { learnOffer = nil }
 
     /// Briefly shows a result inside the closed notch (instant actions, timers).
     func flashResult(icon: String, label: String, duration: TimeInterval = 2.6) {

@@ -4,6 +4,15 @@
   <channel>
     <title>Notch Agent</title>
     <item>
+      <title>Notch Agent 0.3.0</title>
+      <pubDate>Wed, 30 Sep 2026 11:01:40 +0200</pubDate>
+      <sparkle:version>3</sparkle:version>
+      <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:releaseNotesLink>https://github.com/MoMia7/boring.notch/releases/tag/v0.3.0</sparkle:releaseNotesLink>
+      <enclosure url="https://github.com/MoMia7/boring.notch/releases/download/v0.3.0/Notch-Agent.dmg" sparkle:edSignature="3YoLWuKINK7eyJ0Ri1fSlehGZEm8DqbEAL0oyUrbmuK0dMyQC32OJtnNuXxuhrWDqgIf5kRey70R3CZOIo6KDw==" length="8958192" type="application/octet-stream"/>
+    </item>
+    <item>
       <title>Notch Agent 0.2.0</title>
       <pubDate>Wed, 30 Sep 2026 10:01:09 +0200</pubDate>
       <sparkle:version>2</sparkle:version>

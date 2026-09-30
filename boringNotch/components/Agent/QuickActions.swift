@@ -183,13 +183,32 @@ final class QuickActions {
     private var appCache: [(id: String, name: String, url: URL)] = []
     private var appCacheDate = Date.distantPast
 
+    /// What Jev thought "this" referred to in the last request (for attaching screen context).
+    private(set) var lastThisRefers: String?
+
+    private static let thisKinds: [(String, String)] = [
+        ("selected_text", "The text the user has selected"),
+        ("files", "The files selected in Finder"),
+        ("web_page", "The web page open in the browser"),
+        ("app_window", "The current app or window"),
+        ("none", "Nothing on screen; the request stands on its own"),
+    ]
+
     /// Returns a label/icon for the action that was performed, or nil if the agent should handle it.
     func tryHandle(_ request: String) async -> (label: String, icon: String)? {
-        guard Defaults[.jevInstantActions], request.count <= 80 else { return nil }
+        lastThisRefers = nil
+        guard Defaults[.jevInstantActions], request.count <= 140 else { return nil }
         guard DecisionEngine.shared.jevAvailable else {
             log.notice("skipped: Jev unavailable (key saved: \(DecisionEngine.shared.hasJevKey, privacy: .public), last error: \(DecisionEngine.shared.lastJevError ?? "none", privacy: .public))")
             return nil
         }
+
+        // Captured when the key went down (or when a typed request was sent); wait briefly.
+        async let screenTask = ContextCapture.shared.context(maxWait: 0.5)
+        async let menuTask = ContextCapture.shared.menuItems(maxWait: 0.4)
+        let screen = await screenTask
+        let menu = RequestParsing.rankMenuItems(await menuTask, for: request)
+        let frontApp = ContextCapture.shared.targetApp ?? "the current app"
 
         let apps = installedApps()
         if shortcuts.isEmpty || Date().timeIntervalSince(shortcutsFetchedAt) > 600 {
@@ -202,19 +221,46 @@ final class QuickActions {
             }
             return (action.id, action.description)
         }
+        for learned in LearnedActions.shared.actions {
+            actionOptions.append((learned.jevID, "Learned: \(learned.title), e.g. “\(learned.request)”"))
+        }
+        if !menu.isEmpty {
+            actionOptions.append(("menu_command", "Use a command from \(frontApp)'s menus, e.g. export, zoom, new tab or window, show or hide a sidebar, formatting, find, share"))
+        }
+        if screen?.selectedText != nil {
+            actionOptions.append(("search_selection", "Search the web for the selected text"))
+        }
+        if screen?.pageURL != nil {
+            actionOptions.append(("copy_link", "Copy the link of the current web page"))
+        }
         actionOptions.append(("agent", "Anything else: questions, multi-step tasks, files, calendar, reminders, messages, or anything needing text, names, numbers or times"))
         var appOptions = apps.map { ($0.id, $0.name) }
         appOptions.append(("none", "No application is mentioned"))
 
+        var questions: [(String, DecisionQuestion)] = [
+            ("action", .choice("Which single action does this request ask for?", actionOptions)),
+            ("app", .choice("Which application, if any, does the request name?", appOptions)),
+            ("level", .choice("What level (percent) does the request state, if any?", Self.levelOptions)),
+            ("music_kind", .choice("If this is a request to play music, what should be played?", Self.musicKinds)),
+            ("specifics", .noul("The request needs a specific time, date, message, file or amount other than an application name, a volume/brightness level, or music to play; or it asks for more than one thing")),
+        ]
+        var state: [String: Any] = ["request": request]
+        if let screen {
+            // Metadata only; the selected text itself never goes to Jev.
+            state["screen"] = screen.jevSummary
+            if screen.hasReferent {
+                questions.append(("this_refers", .choice("What on the user's screen does the request refer to, if anything?", Self.thisKinds)))
+            }
+        }
+        if !menu.isEmpty {
+            var menuOptions = menu.enumerated().map { ("m\($0.offset)", $0.element) }
+            menuOptions.append(("none", "None of these menu commands"))
+            questions.append(("menu_item", .choice("Which of \(frontApp)'s menu commands does the request ask for?", menuOptions)))
+        }
+
         guard let result = await DecisionEngine.shared.decide(
-            state: ["request": request],
-            questions: [
-                ("action", .choice("Which single action does this request ask for?", actionOptions)),
-                ("app", .choice("Which application, if any, does the request name?", appOptions)),
-                ("level", .choice("What level (percent) does the request state, if any?", Self.levelOptions)),
-                ("music_kind", .choice("If this is a request to play music, what should be played?", Self.musicKinds)),
-                ("specifics", .noul("The request needs a specific time, date, message, file or amount other than an application name, a volume/brightness level, or music to play; or it asks for more than one thing")),
-            ],
+            state: state,
+            questions: questions,
             fallback: .none,
             timeout: 1.5
         ) else {
@@ -224,11 +270,40 @@ final class QuickActions {
         let summary = "action=\(result["action"]?.choice ?? "-")@\(result["action"]?.confidence ?? 0) " +
             "app=\(result["app"]?.choice ?? "-") level=\(result["level"]?.choice ?? "-")@\(result["level"]?.confidence ?? 0) " +
             "specifics=\(result["specifics"]?.probability ?? -1) \(Int(result.latency * 1000))ms"
-        log.notice("decision: \(summary, privacy: .public)")
+        log.notice("decision: \(summary, privacy: .public) this=\(result["this_refers"]?.choice ?? "-", privacy: .public) menu=\(menu.count)")
+        lastThisRefers = result["this_refers"]?.choice
 
         guard let actionID = result["action"]?.choice, actionID != "agent",
-              (result["action"]?.confidence ?? 0) >= 0.75,
-              let action = actions.first(where: { $0.id == actionID }) else { return nil }
+              (result["action"]?.confidence ?? 0) >= 0.75 else { return nil }
+
+        // System 2 taught this one earlier: replay it directly.
+        if let learned = LearnedActions.shared.action(forJevID: actionID) {
+            log.notice("ran learned action")
+            return await LearnedActions.shared.run(learned).map { ($0, "bolt.fill") }
+        }
+        switch actionID {
+        case "menu_command":
+            guard let id = result["menu_item"]?.choice, id != "none", (result["menu_item"]?.confidence ?? 0) >= 0.5,
+                  let index = Int(id.dropFirst()), menu.indices.contains(index),
+                  await ContextCapture.shared.pressMenuItem(menu[index]) else { return nil }
+            log.notice("ran menu command")
+            let item = menu[index].components(separatedBy: " › ").last ?? menu[index]
+            return ("\(frontApp) › \(item)", "filemenu.and.selection")
+        case "search_selection":
+            guard let text = screen?.selectedText?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty,
+                  let query = String(text.prefix(300)).addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+                  let url = URL(string: "https://www.google.com/search?q=\(query)") else { return nil }
+            NSWorkspace.shared.open(url)
+            return ("Searched “\(text.prefix(28))\(text.count > 28 ? "…" : "")”", "magnifyingglass")
+        case "copy_link":
+            guard let link = screen?.pageURL else { return nil }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(link, forType: .string)
+            return ("Copied link", "link")
+        default:
+            break
+        }
+        guard let action = actions.first(where: { $0.id == actionID }) else { return nil }
         // Actions whose whole point is a specific time, text or name skip the "specifics" guard.
         switch action.id {
         case "play_music":

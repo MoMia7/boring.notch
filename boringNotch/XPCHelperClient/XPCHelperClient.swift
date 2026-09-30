@@ -273,6 +273,41 @@ final class XPCHelperClient: NSObject {
         }
     }
 
+    nonisolated func menuItems(processIdentifier: pid_t) async -> [String] {
+        do {
+            let service = await MainActor.run { ensureRemoteService() }
+            return try await service.withContinuation { service, continuation in
+                service.menuItems(processIdentifier: processIdentifier) { items in continuation.resume(returning: items) }
+            }
+        } catch {
+            return []
+        }
+    }
+
+    nonisolated func pressMenuItem(processIdentifier: pid_t, path: String) async -> Bool {
+        do {
+            let service = await MainActor.run { ensureRemoteService() }
+            return try await service.withContinuation { service, continuation in
+                service.pressMenuItem(processIdentifier: processIdentifier, path: path) { ok in continuation.resume(returning: ok) }
+            }
+        } catch {
+            return false
+        }
+    }
+
+    nonisolated func captureContext(processIdentifier: pid_t, allowCopyFallback: Bool) async -> Data? {
+        do {
+            let service = await MainActor.run { ensureRemoteService() }
+            return try await service.withContinuation { service, continuation in
+                service.captureContext(processIdentifier: processIdentifier, allowCopyFallback: allowCopyFallback) { data in
+                    continuation.resume(returning: data)
+                }
+            }
+        } catch {
+            return nil
+        }
+    }
+
     nonisolated func setScreenBrightness(_ value: Float) async -> Bool {
         do {
             let service = await MainActor.run {
