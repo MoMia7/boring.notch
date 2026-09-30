@@ -135,7 +135,7 @@ final class VolumeManager: NSObject, ObservableObject {
             let avg = max(0, min(1, volumes.reduce(0, +) / Float32(volumes.count)))
             DispatchQueue.main.async {
                 if self.rawVolume != avg {  
-                    if self.didInitialFetch {
+                    if self.didInitialFetch && Date() >= self.quietUntil {
                         self.lastChangeAt = Date()
                     }
                 }
@@ -360,6 +360,19 @@ final class VolumeManager: NSObject, ObservableObject {
         else { return false }
         var val = value
         return AudioObjectSetPropertyData(deviceID, &addr, 0, nil, sizeNeeded, &val) == noErr
+    }
+
+    /// Volume changes before this time don't show the volume HUD (temporary ducking).
+    private var quietUntil = Date.distantPast
+
+    /// Current output volume (0…1).
+    var currentVolume: Float32 { readVolumeInternal() ?? rawVolume }
+
+    /// Sets the volume without showing the volume HUD, e.g. to duck audio while listening.
+    @MainActor func setAbsoluteQuietly(_ value: Float32) {
+        quietUntil = Date().addingTimeInterval(0.6)
+        writeVolumeInternal(max(0, min(1, value)))
+        publish(volume: max(0, min(1, value)), muted: isMutedInternal(), touchDate: false)
     }
 
     private func publish(volume: Float32, muted: Bool, touchDate: Bool) {

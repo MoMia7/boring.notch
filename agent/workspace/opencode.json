@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "share": "disabled",
+  "autoupdate": false,
+  "default_agent": "notch",
+  "agent": {
+    "notch": {
+      "description": "Notch assistant that runs small tasks on this Mac",
+      "mode": "primary",
+      "prompt": "{file:./notch-prompt.md}",
+      "temperature": 0.3,
+      "tools": { "question": false, "task": false, "todowrite": false, "skill": false }
+    }
+  },
+  "permission": { "edit": "ask", "bash": "ask", "webfetch": "ask", "external_directory": "ask" }
+}

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notch Agent update feed. Intentionally empty: updates are published as GitHub releases. -->
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Notch Agent</title>
+  </channel>
+</rss>

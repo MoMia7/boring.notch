@@ -15,7 +15,13 @@ struct TabButton: View {
     
     var body: some View {
         Button(action: onClick) {
-            Image(systemName: icon)
+            Group {
+                if icon == "notch.mark" {
+                    NotchMark(mood: .idle, animated: selected).frame(width: 19)
+                } else {
+                    Image(systemName: icon)
+                }
+            }
                 .padding(.horizontal, 15)
                 .contentShape(Capsule())
         }

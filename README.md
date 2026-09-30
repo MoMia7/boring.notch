@@ -1,4 +1,52 @@
 <h1 align="center">
+  <img src="docs/notch-agent-icon.png" alt="Notch Agent" width="128"><br>
+  Notch Agent
+</h1>
+
+<p align="center">An AI agent that lives in your MacBook's notch. Hold a key, say what you want, let go.</p>
+
+Notch Agent is a fork of [boring.notch](https://github.com/TheBoredTeam/boring.notch) that adds:
+
+- **Push-to-talk.** Hold **Right Option (⌥)**, speak, release. Speech is transcribed on-device by Apple's speech model (macOS 26+), and music is lowered while you talk.
+- **Instant actions.** Simple requests are routed by [Jev](https://typesafe.ai), a fast decision model, and run in a few hundred milliseconds without an LLM:
+  - volume, brightness and media keys
+  - "open Slack"
+  - dark mode, screenshots
+  - "play Bohemian Rhapsody", "play my gym playlist" (Spotify)
+- **A real agent for everything else.** Other requests go to [opencode](https://opencode.ai) running in the background, using ChatGPT, an API key, or a local model. Every shell command or file edit asks for your approval in the notch.
+- **Live status.** The notch shows the tool being run, progress, retries, and elapsed time. Results pop up when you weren't looking.
+- **Ambient nudges (optional).** Offers to help with new downloads, meetings about to start, and low battery.
+
+## Install
+
+1. Download **Notch Agent.dmg** from [Releases](../../releases/latest) and drag it to Applications.
+2. The app isn't notarized, so macOS blocks the first launch. Right-click the app → **Open** → **Open**, or run:
+   ```sh
+   xattr -dr com.apple.quarantine "/Applications/Notch Agent.app"
+   ```
+3. Set up the background agent (installs opencode and a login service):
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/MoMia7/boring.notch/main/agent/setup.sh | zsh
+   ```
+4. In **Settings → Notch Agent**:
+   - **Models:** log in with ChatGPT (Plus/Pro) or add an API key for any provider.
+   - **Jev:** paste a [TypeSafe](https://console.typesafe.ai) API key to enable instant actions. It costs about a cent a day.
+   - **Spotify** (optional, Premium): create a free app at the [Spotify developer dashboard](https://developer.spotify.com/dashboard) with the redirect URI shown in Settings, paste the Client ID, and click Connect.
+5. Grant **Accessibility** (for the push-to-talk key) and **Microphone** when asked.
+
+Requires macOS 14+. Voice input needs macOS 26+.
+
+## Local model (advanced)
+
+`agent/local-gemma/proxy.ts` lets opencode use a local llama.cpp model (tested with Gemma 4 26B) with working tool calls. It converts Gemma's native tool-call syntax, repairs misspelled arguments, and reports live progress to the notch. Run it with Bun and point an opencode provider at `http://127.0.0.1:8081/v1`.
+
+## Credits
+
+Built on [boring.notch](https://github.com/TheBoredTeam/boring.notch) by TheBoredTeam, licensed under GPL-3.0. This fork is distributed under the same license. The original README follows.
+
+---
+
+<h1 align="center">
   <br>
   <a href="http://theboring.name"><img src="https://framerusercontent.com/images/RFK4vs0kn8pRMuOO58JeyoemXA.png?scale-down-to=256" alt="Boring Notch" width="150"></a>
   <br>

@@ -41,7 +41,7 @@ class BoringNotchWindow: NSPanel {
     }
     
     override var canBecomeKey: Bool {
-        false
+        AgentKeyPolicy.allowsKey
     }
     
     override var canBecomeMain: Bool {

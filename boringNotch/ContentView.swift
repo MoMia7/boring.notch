@@ -23,6 +23,8 @@ struct ContentView: View {
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var brightnessManager = BrightnessManager.shared
     @ObservedObject var volumeManager = VolumeManager.shared
+    @ObservedObject var agent = AgentManager.shared
+    @ObservedObject var voice = VoiceInput.shared
     @State private var hoverTask: Task<Void, Never>?
     @State private var isHovering: Bool = false
     @State private var anyDropDebounceTask: Task<Void, Never>?
@@ -65,6 +67,14 @@ struct ContentView: View {
             && vm.notchState == .closed && Defaults[.showPowerStatusNotifications]
         {
             chinWidth = 640
+        } else if vm.notchState == .closed && (voice.isActive || agent.isRoutingVoice) {
+            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
+        } else if vm.notchState == .closed && agent.quickResult != nil {
+            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
+        } else if vm.notchState == .closed && !coordinator.expandingView.show
+            && (agent.isBusy || !agent.permissions.isEmpty) && !vm.hideOnClosed
+        {
+            chinWidth += (2 * max(0, vm.effectiveClosedNotchHeight - 12) + 20)
         } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music)
             && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle)
             && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed
@@ -112,6 +122,16 @@ struct ContentView: View {
                         color: ((vm.notchState == .open || isHovering) && Defaults[.enableShadow])
                             ? .black.opacity(0.7) : .clear, radius: Defaults[.cornerRadiusScaling] ? 6 : 4
                     )
+                    // Push-to-talk: the notch glows with the voice level while listening.
+                    .shadow(
+                        color: voice.isActive ? Color(red: 1.0, green: 0.45, blue: 0.5).opacity(0.55 + 0.4 * Double(voice.level)) : .clear,
+                        radius: voice.isActive ? 5 + 9 * CGFloat(voice.level) : 0
+                    )
+                    .shadow(color: agent.quickResult != nil && !voice.isActive ? Color.yellow.opacity(0.45) : .clear,
+                            radius: agent.quickResult != nil ? 8 : 0)
+                    .animation(.smooth(duration: 0.3), value: agent.quickResult?.id)
+                    .animation(.easeOut(duration: 0.12), value: voice.level)
+                    .animation(.smooth(duration: 0.25), value: voice.isActive)
                     .padding(
                         .bottom,
                         vm.effectiveClosedNotchHeight == 0 ? 10 : 0
@@ -287,6 +307,13 @@ struct ContentView: View {
                       } else if coordinator.sneakPeek.show && Defaults[.inlineHUD] && (coordinator.sneakPeek.type != .music) && (coordinator.sneakPeek.type != .battery) && vm.notchState == .closed {
                           InlineHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon, hoverAnimation: $isHovering, gestureProgress: $gestureProgress)
                               .transition(.opacity)
+                      } else if vm.notchState == .closed && (voice.isActive || agent.isRoutingVoice) {
+                          VoiceLiveActivity()
+                      } else if vm.notchState == .closed && agent.quickResult != nil {
+                          QuickResultActivity()
+                              .transition(.opacity)
+                      } else if vm.notchState == .closed && !coordinator.expandingView.show && (agent.isBusy || !agent.permissions.isEmpty) && !vm.hideOnClosed {
+                          AgentLiveActivity()
                       } else if (!coordinator.expandingView.show || coordinator.expandingView.type == .music) && vm.notchState == .closed && (musicManager.isPlaying || !musicManager.isPlayerIdle) && coordinator.musicLiveActivityEnabled && !vm.hideOnClosed {
                           MusicLiveActivity()
                               .frame(alignment: .center)
@@ -349,6 +376,8 @@ struct ContentView: View {
                         NotchHomeView(albumArtNamespace: albumArtNamespace)
                     case .shelf:
                         ShelfView()
+                    case .agent:
+                        AgentView()
                     }
                 }
                 .transition(
@@ -362,6 +391,77 @@ struct ContentView: View {
             }
         }
         .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], delegate: GeneralDropTargetDelegate(isTargeted: $vm.generalDropTargeting))
+    }
+
+    @ViewBuilder
+    func QuickResultActivity() -> some View {
+        let side = max(0, vm.effectiveClosedNotchHeight - 12)
+        VStack(spacing: 0) {
+            // Symmetric row so it stays centred on the physical notch.
+            HStack {
+                ZStack {
+                    Circle().fill(Color.yellow.opacity(0.2))
+                    Image(systemName: agent.quickResult?.icon ?? "bolt.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.yellow)
+                }
+                .frame(width: side, height: side)
+                Rectangle()
+                    .fill(.black)
+                    .frame(width: vm.closedNotchSize.width - 20)
+                Image(systemName: "bolt.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.yellow)
+                    .frame(width: side, height: side)
+            }
+            .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
+            // The result itself sits below the notch, where it's visible.
+            Text(agent.quickResult?.label ?? "")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .frame(maxWidth: vm.closedNotchSize.width + 2 * side)
+                .padding(.bottom, 8)
+        }
+    }
+
+    @ViewBuilder
+    func VoiceLiveActivity() -> some View {
+        let side = max(0, vm.effectiveClosedNotchHeight - 12)
+        HStack {
+            NotchMarkBadge(mood: .listening)
+                .frame(width: side, height: side)
+            Rectangle()
+                .fill(.black)
+                .frame(width: vm.closedNotchSize.width - 20)
+            VoiceWaveform(level: voice.level)
+                .frame(width: side, height: side * 0.8)
+                .opacity(voice.state == .listening ? 1 : 0.4)
+        }
+        .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
+    }
+
+    @ViewBuilder
+    func AgentLiveActivity() -> some View {
+        let side = max(0, vm.effectiveClosedNotchHeight - 12)
+        HStack {
+            NotchMarkBadge(mood: agent.permissions.isEmpty ? .working : .attention)
+                .frame(width: side, height: side)
+            Rectangle()
+                .fill(.black)
+                .frame(width: vm.closedNotchSize.width - 20)
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(agent.taskStartedAt.map { AgentActivityView.clock(context.date.timeIntervalSince($0)) } ?? "")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.gray)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .frame(width: side, height: side)
+            .opacity(agent.isBusy ? 1 : 0)
+        }
+        .frame(height: vm.effectiveClosedNotchHeight, alignment: .center)
     }
 
     @ViewBuilder

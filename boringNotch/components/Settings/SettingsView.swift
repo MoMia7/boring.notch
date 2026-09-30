@@ -15,7 +15,7 @@ import SwiftUI
 import SwiftUIIntrospect
 
 struct SettingsView: View {
-    @State private var selectedTab = "General"
+    @State private var selectedTab = "Agent.Agent"
     @State private var accentColorUpdateTrigger = UUID()
 
     let updaterController: SPUStandardUpdaterController?
@@ -27,41 +27,58 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedTab) {
-                NavigationLink(value: "General") {
-                    Label("General", systemImage: "gear")
+                Section("Notch Agent") {
+                    ForEach(AgentSettingsPage.allCases, id: \.self) { page in
+                        NavigationLink(value: "Agent." + page.rawValue) {
+                            Label {
+                                Text(page.rawValue)
+                            } icon: {
+                                if page.icon == "notch.mark" {
+                                    NotchMark(mood: .idle, animated: false).frame(width: 15)
+                                } else {
+                                    Image(systemName: page.icon)
+                                }
+                            }
+                        }
+                    }
                 }
-                NavigationLink(value: "Appearance") {
-                    Label("Appearance", systemImage: "eye")
-                }
-                NavigationLink(value: "Media") {
-                    Label("Media", systemImage: "play.laptopcomputer")
-                }
-                NavigationLink(value: "Calendar") {
-                    Label("Calendar", systemImage: "calendar")
-                }
-                NavigationLink(value: "HUD") {
-                    Label("HUDs", systemImage: "dial.medium.fill")
-                }
-                NavigationLink(value: "Battery") {
-                    Label("Battery", systemImage: "battery.100.bolt")
-                }
-//                NavigationLink(value: "Downloads") {
-//                    Label("Downloads", systemImage: "square.and.arrow.down")
-//                }
-                NavigationLink(value: "Shelf") {
-                    Label("Shelf", systemImage: "books.vertical")
-                }
-                NavigationLink(value: "Shortcuts") {
-                    Label("Shortcuts", systemImage: "keyboard")
-                }
-                // NavigationLink(value: "Extensions") {
-                //     Label("Extensions", systemImage: "puzzlepiece.extension")
-                // }
-                NavigationLink(value: "Advanced") {
-                    Label("Advanced", systemImage: "gearshape.2")
-                }
-                NavigationLink(value: "About") {
-                    Label("About", systemImage: "info.circle")
+                Section("boring.notch") {
+                    NavigationLink(value: "General") {
+                        Label("General", systemImage: "gear")
+                    }
+                    NavigationLink(value: "Appearance") {
+                        Label("Appearance", systemImage: "eye")
+                    }
+                    NavigationLink(value: "Media") {
+                        Label("Media", systemImage: "play.laptopcomputer")
+                    }
+                    NavigationLink(value: "Calendar") {
+                        Label("Calendar", systemImage: "calendar")
+                    }
+                    NavigationLink(value: "HUD") {
+                        Label("HUDs", systemImage: "dial.medium.fill")
+                    }
+                    NavigationLink(value: "Battery") {
+                        Label("Battery", systemImage: "battery.100.bolt")
+                    }
+    //                NavigationLink(value: "Downloads") {
+    //                    Label("Downloads", systemImage: "square.and.arrow.down")
+    //                }
+                    NavigationLink(value: "Shelf") {
+                        Label("Shelf", systemImage: "books.vertical")
+                    }
+                    NavigationLink(value: "Shortcuts") {
+                        Label("Shortcuts", systemImage: "keyboard")
+                    }
+                    // NavigationLink(value: "Extensions") {
+                    //     Label("Extensions", systemImage: "puzzlepiece.extension")
+                    // }
+                    NavigationLink(value: "Advanced") {
+                        Label("Advanced", systemImage: "gearshape.2")
+                    }
+                    NavigationLink(value: "About") {
+                        Label("About", systemImage: "info.circle")
+                    }
                 }
             }
             .listStyle(SidebarListStyle())
@@ -87,6 +104,11 @@ struct SettingsView: View {
                     Shelf()
                 case "Shortcuts":
                     Shortcuts()
+                case let tab where tab.hasPrefix("Agent."):
+                    AgentSettings(page: AgentSettingsPage(rawValue: String(tab.dropFirst(6))) ?? .agent)
+                        .id(tab)
+                case "Agent":
+                    AgentSettings()
                 case "Extensions":
                     GeneralSettings()
                 case "Advanced":

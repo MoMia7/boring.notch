@@ -67,6 +67,18 @@ class BoringViewModel: NSObject, ObservableObject {
             .store(in: &cancellables)
         
         setupDetectorObserver()
+
+        // Resize the open notch when switching to or from the taller agent tab.
+        coordinator.$currentView
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] view in
+                guard let self, self.notchState == .open else { return }
+                withAnimation(self.animationLibrary.animation) {
+                    self.notchSize = openNotchSize(for: view)
+                }
+            }
+            .store(in: &cancellables)
     }
     
     private func setupDetectorObserver() {
@@ -190,7 +202,7 @@ class BoringViewModel: NSObject, ObservableObject {
     }
 
     func open() {
-        self.notchSize = openNotchSize
+        self.notchSize = openNotchSize(for: coordinator.currentView)
         self.notchState = .open
         
         // Force music information update when notch is opened
@@ -214,7 +226,7 @@ class BoringViewModel: NSObject, ObservableObject {
     if !ShelfStateViewModel.shared.isEmpty && Defaults[.openShelfByDefault] {
             coordinator.currentView = .shelf
         } else if !coordinator.openLastTabByDefault {
-            coordinator.currentView = .home
+            coordinator.currentView = .agent
         }
     }
 

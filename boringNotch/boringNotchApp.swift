@@ -23,13 +23,16 @@ struct DynamicNotchApp: App {
     init() {
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        // This fork is built locally; upstream updates would replace the agent build.
+        updaterController.updater.automaticallyChecksForUpdates = false
+        updaterController.updater.automaticallyDownloadsUpdates = false
 
         // Initialize the settings window controller with the updater controller
         SettingsWindowController.shared.setUpdaterController(updaterController)
     }
 
     var body: some Scene {
-        MenuBarExtra("boring.notch", systemImage: "sparkle", isInserted: $showMenuBarIcon) {
+        MenuBarExtra("Notch Agent", systemImage: "sparkle", isInserted: $showMenuBarIcon) {
             Button("Settings") {
                 DispatchQueue.main.async {
                     SettingsWindowController.shared.showWindow()
@@ -231,6 +234,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func viewModelUnderMouse() -> BoringViewModel {
+        guard Defaults[.showOnAllDisplays] else { return vm }
+        let mouseLocation = NSEvent.mouseLocation
+        for screen in NSScreen.screens where screen.frame.contains(mouseLocation) {
+            if let uuid = screen.displayUUID, let screenViewModel = viewModels[uuid] {
+                return screenViewModel
+            }
+        }
+        return vm
+    }
+
+    @MainActor
+    private func openAgentPanel(on viewModel: BoringViewModel, focusInput: Bool) {
+        closeNotchTask?.cancel()
+        closeNotchTask = nil
+        withAnimation(.smooth) {
+            coordinator.currentView = .agent
+        }
+        if viewModel.notchState == .closed {
+            viewModel.open()
+        }
+        if focusInput {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(350))
+                NotificationCenter.default.post(name: .agentFocusInput, object: nil)
+            }
+        }
+    }
+
     private func createBoringNotchWindow(for screen: NSScreen, with viewModel: BoringViewModel) -> NSWindow {
         let rect = NSRect(x: 0, y: 0, width: windowSize.width, height: windowSize.height)
         let styleMask: NSWindow.StyleMask = [.borderless, .nonactivatingPanel, .utilityWindow, .hudWindow]
@@ -407,6 +439,63 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         viewModel.close()
                     }
                 }
+            }
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .openAgent) { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                let viewModel = self.viewModelUnderMouse()
+                if viewModel.notchState == .open && self.coordinator.currentView == .agent {
+                    viewModel.close()
+                } else {
+                    self.openAgentPanel(on: viewModel, focusInput: true)
+                }
+            }
+        }
+
+        AmbientMonitor.shared.start()
+        PushToTalk.shared.start()
+        NotificationCenter.default.addObserver(forName: .agentNudge, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                let viewModel = self.viewModelUnderMouse()
+                guard viewModel.notchState == .closed else { return }
+                self.openAgentPanel(on: viewModel, focusInput: false)
+                self.closeNotchTask = Task { [weak viewModel] in
+                    try? await Task.sleep(for: .seconds(12))
+                    guard !Task.isCancelled, let viewModel, !viewModel.isMouseHovering() else { return }
+                    viewModel.close()
+                }
+            }
+        }
+
+        // Show the outcome of requests made without the notch open (push-to-talk), then tuck it away.
+        NotificationCenter.default.addObserver(forName: .agentShowResult, object: nil, queue: .main) { [weak self] note in
+            let dwell = note.userInfo?["dwell"] as? TimeInterval ?? 5
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                let viewModel = self.viewModelUnderMouse()
+                let wasClosed = viewModel.notchState == .closed
+                self.openAgentPanel(on: viewModel, focusInput: false)
+                guard wasClosed else { return }
+                self.closeNotchTask = Task { [weak viewModel] in
+                    try? await Task.sleep(for: .seconds(dwell))
+                    // Keep it open while the pointer is over it; close once it leaves.
+                    while let viewModel, viewModel.isMouseHovering() {
+                        try? await Task.sleep(for: .milliseconds(500))
+                    }
+                    guard !Task.isCancelled, let viewModel else { return }
+                    viewModel.close()
+                }
+            }
+        }
+
+        // Pop the notch open on the agent tab when it needs an approval.
+        NotificationCenter.default.addObserver(forName: .agentNeedsAttention, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                self.openAgentPanel(on: self.viewModelUnderMouse(), focusInput: false)
             }
         }
 
