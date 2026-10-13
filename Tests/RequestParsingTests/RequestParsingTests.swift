@@ -54,12 +54,10 @@ final class DurationTests: XCTestCase {
 }
 
 final class DatedTextTests: XCTestCase {
-    /// Tuesday 30 Sep 2026, 14:00 local time.
-    private let now: Date = {
-        var c = DateComponents()
-        c.year = 2026; c.month = 9; c.day = 30; c.hour = 14
-        return Calendar.current.date(from: c)!
-    }()
+    /// Today at 14:00. NSDataDetector resolves "tomorrow" or "at 9am" against the real clock
+    /// (it has no reference date), so a fixed calendar day would make these tests date-dependent.
+    private let now: Date = Calendar.current.date(bySettingHour: 14, minute: 0, second: 0, of: Date())!
+    private var tomorrow: Int { Calendar.current.component(.day, from: Calendar.current.date(byAdding: .day, value: 1, to: now)!) }
 
     private func parts(_ date: Date?) -> DateComponents? {
         date.map { Calendar.current.dateComponents([.day, .hour, .minute], from: $0) }
@@ -76,7 +74,7 @@ final class DatedTextTests: XCTestCase {
         let r = RequestParsing.datedText("remind me to buy milk tomorrow", commandPatterns: RequestParsing.reminderCommands, now: now)
         XCTAssertEqual(r.title, "Buy milk")
         XCTAssertFalse(r.hasTime)
-        XCTAssertEqual(parts(r.date)?.day, 1)  // Oct 1
+        XCTAssertEqual(parts(r.date)?.day, tomorrow)
         XCTAssertEqual(parts(r.date)?.hour, 0)
     }
 
@@ -88,7 +86,7 @@ final class DatedTextTests: XCTestCase {
 
     func testPastTimeTodayRollsToTomorrow() {
         let r = RequestParsing.datedText("remind me to stretch at 9am", commandPatterns: RequestParsing.reminderCommands, now: now)
-        XCTAssertEqual(parts(r.date)?.day, 1)
+        XCTAssertEqual(parts(r.date)?.day, tomorrow)
         XCTAssertEqual(parts(r.date)?.hour, 9)
     }
 

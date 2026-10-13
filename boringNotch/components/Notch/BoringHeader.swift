@@ -13,6 +13,7 @@ struct BoringHeader: View {
     @ObservedObject var batteryModel = BatteryStatusViewModel.shared
     @ObservedObject var coordinator = BoringViewCoordinator.shared
     @StateObject var tvm = ShelfStateViewModel.shared
+    @Default(.whistleTrigger) var whistleListening
     var body: some View {
         HStack(spacing: 0) {
             HStack {
@@ -42,6 +43,27 @@ struct BoringHeader: View {
                         OpenNotchHUD(type: $coordinator.sneakPeek.type, value: $coordinator.sneakPeek.value, icon: $coordinator.sneakPeek.icon)
                             .transition(.scale(scale: 0.8).combined(with: .opacity))
                     } else {
+                        Button(action: {
+                            whistleListening.toggle()
+                        }) {
+                            Capsule()
+                                .fill(.black)
+                                .frame(width: 30, height: 30)
+                                .overlay {
+                                    Image(systemName: "music.note")
+                                        .foregroundColor(whistleListening ? .white : .gray)
+                                        .opacity(whistleListening ? 1 : 0.6)
+                                        .padding()
+                                        .imageScale(.medium)
+                                }
+                                .overlay(alignment: .topTrailing) {
+                                    if whistleListening {
+                                        Circle().fill(.orange).frame(width: 6, height: 6).offset(x: -5, y: 5)
+                                    }
+                                }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .help(whistleListening ? "Whistle listening is on. Click to turn off" : "Whistle listening is off. Click to turn on")
                         if Defaults[.showMirror] {
                             Button(action: {
                                 vm.toggleCameraPreview()

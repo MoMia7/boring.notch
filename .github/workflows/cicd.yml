@@ -45,3 +45,12 @@ jobs:
         verbosity: xcpretty
         upload-logs: always
         configuration: release
+
+  unit-tests:
+    name: Notch Agent unit tests
+    runs-on: macos-15
+    steps:
+    - name: Code Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Run swift test
+      run: swift test

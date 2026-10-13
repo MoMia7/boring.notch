@@ -3,27 +3,44 @@
   Notch Agent
 </h1>
 
-<p align="center">An AI agent that lives in your MacBook's notch. Hold a key, say what you want, let go.</p>
+<p align="center">An AI agent that lives in your MacBook's notch. Hold a key or whistle, say what you want, and it's done.</p>
 
-Notch Agent is a fork of [boring.notch](https://github.com/TheBoredTeam/boring.notch) that adds:
+Notch Agent is a fork of [boring.notch](https://github.com/TheBoredTeam/boring.notch). Everything boring.notch does is still here, plus an agent you talk to.
 
-- **Push-to-talk.** Hold **Right Option (⌥)**, speak, release. Speech is transcribed on-device by Apple's speech model (macOS 26+), and music is lowered while you talk.
-- **Instant actions.** Simple requests are routed by [Jev](https://typesafe.ai), a fast decision model, and run in a few hundred milliseconds without an LLM:
-  - volume, brightness and media keys
-  - "open Slack"
-  - dark mode, screenshots
-  - "play Bohemian Rhapsody", "play my gym playlist" (Spotify)
-  - "remind me to call mom at 6", "block 2 to 3pm tomorrow for gym", "timer 10 minutes" (a countdown appears in the notch)
-  - any of your **Shortcuts** by name ("run my morning routine")
-  - any **menu command of the app you're in**, e.g. "export this as PDF", "zoom in", "new incognito window", "show the sidebar"
-  - "search this" (the selected text), "copy this link"
-- **It knows what "this" is.** Your selection, the Finder files you've selected, the web page you're on, and the current window are captured when you press the key. "Summarize this" and "what does this error mean" just work. Selected text goes only to your chosen AI model, never to Jev.
-- **It learns.** When the agent finishes a task using simple commands, the notch offers **Make this instant**. After that, the same request skips the AI and runs in a few hundred milliseconds. Destructive commands are never learned. Learned actions are listed in Settings → Jev.
-- **A real agent for everything else.** Other requests go to [opencode](https://opencode.ai) running in the background, using ChatGPT, an API key, or a local model. Every shell command or file edit asks for your approval in the notch.
-- **Live status.** The notch shows the tool being run, progress, retries, and elapsed time. Results pop up when you weren't looking.
-- **Ambient nudges (optional).** Offers to help with new downloads, meetings about to start, and low battery.
-- **Replaces boring.notch.** If boring.notch is installed, Notch Agent brings its settings over and moves it to the Trash, so the two don't fight over the notch. Everything boring.notch does is still here.
-- **Updates itself.** New releases install automatically (Sparkle).
+## Talking to it
+
+- **Push-to-talk.** Hold **Right Option (⌥)**, speak, release. Music is lowered while you talk. Holding the key with other keys keeps its normal shortcut behavior.
+- **Whistle to talk** (opt-in). Whistle a short pattern, wait for the chime, then say what you want: "mute", "next song", or a whole task. It stops listening on its own when you stop talking.
+- **Whistle commands.** Bind a whistle to a request, so one whistle means "mute" or "skip". No talking needed. Commands go through the same routing as speech, so anything you could say works.
+- **Your own patterns.** Record the listening pattern and each command in **Settings → Voice** by whistling it three times. Patterns are matched by shape, so the key and speed don't need to be exact. A pattern that's one steady note, or too close to another, is rejected so it can't misfire.
+- **Quick toggle.** The ♪ button at the top right of the open notch turns whistle listening on and off.
+
+## What it can do
+
+**Instant actions.** Simple requests are routed by [Jev](https://typesafe.ai), a fast decision model, and run in a few hundred milliseconds without an LLM:
+- volume, brightness and media keys
+- "open Slack", dark mode, screenshots
+- "play Bohemian Rhapsody", "play my gym playlist" (Spotify)
+- "remind me to call mom at 6", "block 2 to 3pm tomorrow for gym", "timer 10 minutes" (a countdown appears in the notch)
+- any of your **Shortcuts** by name ("run my morning routine")
+- any **menu command of the app you're in**: "export this as PDF", "zoom in", "new incognito window", "show the sidebar"
+- "search this" (the selected text), "copy this link"
+
+**It knows what "this" is.** Your selection, the Finder files you've selected, the web page you're on and the current window are captured when you start talking. "Summarize this" and "what does this error mean" just work.
+
+**It learns.** When the agent finishes a task using simple commands, the notch offers **Make this instant**. After that, the same request skips the AI and runs in a few hundred milliseconds. Destructive commands are never learned. Learned actions are listed in **Settings → Jev**.
+
+**A real agent for everything else.** Other requests go to [opencode](https://opencode.ai) running in the background, using ChatGPT, an API key, or a local model. Every shell command or file edit asks for your approval in the notch.
+
+**In the notch.** Live status shows the tool being run, progress, retries and elapsed time, and results pop up when you weren't looking. Optional ambient nudges offer help with new downloads, meetings about to start and low battery.
+
+**Housekeeping.** If boring.notch is installed, Notch Agent brings its settings over and moves it to the Trash, so the two don't fight over the notch. New releases install automatically (Sparkle).
+
+## Privacy
+
+- **Speech** is transcribed on this Mac by Apple's on-device model. Audio never leaves the computer.
+- **Whistle listening** keeps the microphone open while it's on, so macOS shows the orange mic dot. Until a pattern matches, only the pitch of what it hears is measured, on this Mac; nothing is transcribed, stored or sent. It pauses while the display sleeps or the screen is locked, and while a Bluetooth headset is the microphone, since opening a headset's mic drops it to call-quality audio.
+- **Jev** sees the request, the names of your apps, Shortcuts and the front app's menu commands (to route to them), and coarse screen context such as whether something is selected. It never sees your selected text, files or page contents; those go only to the AI model you chose.
 
 ## Install
 
@@ -40,15 +57,20 @@ Notch Agent is a fork of [boring.notch](https://github.com/TheBoredTeam/boring.n
    - **Models:** log in with ChatGPT (Plus/Pro) or add an API key for any provider.
    - **Jev:** paste a [TypeSafe](https://console.typesafe.ai) API key to enable instant actions. It costs about a cent a day.
    - **Spotify** (optional, Premium): create a free app at the [Spotify developer dashboard](https://developer.spotify.com/dashboard) with the redirect URI shown in Settings, paste the Client ID, and click Connect.
-5. Grant **Accessibility** (for the push-to-talk key) and **Microphone** when asked.
+5. Grant **Accessibility** (for the push-to-talk key) and **Microphone** (for talking and whistling) when asked.
+6. Optional: turn on whistling with the ♪ button in the notch, or in **Settings → Voice**, and record your patterns there.
 
 Requires macOS 14+. Voice input needs macOS 26+.
 
 ## Development
 
-- `swift test` runs the parsing tests (music queries, levels, durations, dates).
+- `swift test` runs the unit tests: request parsing (music queries, levels, durations, dates), and whistle pitch tracking and pattern matching against synthesized whistles. CI runs them on every push.
 - `bun test agent/local-gemma` runs the local-model proxy tests.
 - `scripts/release.sh` builds, signs and packages `Notch-Agent.dmg`, and adds a signed entry to `appcast.xml`. Publish the DMG as a GitHub release `v<version>`, then commit `appcast.xml`.
+- To debug whistle matching, watch the scores while you whistle:
+  ```sh
+  log stream --predicate 'subsystem == "io.otron.notch" AND category == "whistle"'
+  ```
 
 ## Local model (advanced)
 

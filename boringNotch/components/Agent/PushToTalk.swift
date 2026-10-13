@@ -86,6 +86,8 @@ final class PushToTalk {
     private var confirmTask: Task<Void, Never>?
     /// Volume before ducking, restored when the key is released.
     private var duckedFrom: Float32?
+    /// Hands-free listening started by the whistle trigger.
+    private var handsFreeTask: Task<Void, Never>?
 
     private init() {}
 
@@ -135,6 +137,8 @@ final class PushToTalk {
     }
 
     private func keyDown() {
+        handsFreeTask?.cancel()
+        handsFreeTask = nil
         pressedAt = Date()
         confirmed = false
         VoiceInput.shared.begin()
@@ -165,6 +169,45 @@ final class PushToTalk {
             guard !text.isEmpty else { return }
             log.notice("push-to-talk sending \(text.count) chars")
             AgentManager.shared.send(text, showResult: true)
+        }
+    }
+
+    /// Listens without a key (after the whistle trigger) and sends once the speaker goes quiet.
+    func listenHandsFree() {
+        guard pressedAt == nil, !VoiceInput.shared.isActive else { return }
+        VoiceInput.shared.begin()
+        guard VoiceInput.shared.state == .listening else { return }
+        // No ⌘C fallback: the user may be across the room, so don't type into the front app.
+        ContextCapture.shared.begin(allowCopyFallback: false)
+        duck()
+        NotificationCenter.default.post(name: .agentVoiceStarted, object: nil)
+        handsFreeTask = Task { [weak self] in
+            await Self.waitForEndOfSpeech()
+            guard let self, !Task.isCancelled else { return }
+            self.handsFreeTask = nil
+            self.restoreVolume()
+            let text = await VoiceInput.shared.end()
+            guard !text.isEmpty else { return }
+            log.notice("hands-free sending \(text.count) chars")
+            AgentManager.shared.send(text, showResult: true)
+        }
+    }
+
+    /// Ends when the transcript stops changing, or when nothing is said at all.
+    private static func waitForEndOfSpeech() async {
+        let started = Date()
+        var lastText = ""
+        var lastChange = Date()
+        while VoiceInput.shared.state == .listening, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(100))
+            let text = VoiceInput.shared.transcript
+            if text != lastText {
+                lastText = text
+                lastChange = Date()
+            }
+            let elapsed = Date().timeIntervalSince(started)
+            if text.isEmpty ? elapsed > 4 : Date().timeIntervalSince(lastChange) > 1.0 { return }
+            if elapsed > 12 { return }
         }
     }
 

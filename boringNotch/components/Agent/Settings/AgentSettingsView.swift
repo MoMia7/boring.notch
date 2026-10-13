@@ -62,6 +62,7 @@ struct AgentSettings: View {
                 connectSection
             case .voice:
                 VoiceSettingsSection()
+                WhistleSettingsSection()
             case .jev:
                 JevSettingsSection()
                 LearnedActionsSection()
@@ -632,6 +633,147 @@ struct VoiceSettingsSection: View {
             Text("Hold the key, speak, and release to send. Speech is transcribed on this Mac with Apple's on-device model (macOS 26 or later); audio never leaves the computer. Holding the key together with other keys keeps its normal shortcut behavior.")
                 .foregroundStyle(.secondary)
                 .font(.caption)
+        }
+    }
+}
+
+/// Whistle a pattern to start listening hands-free, and record your own pattern.
+struct WhistleSettingsSection: View {
+    @Default(.whistleTrigger) private var enabled
+    @Default(.whistlePattern) private var saved
+    @Default(.whistleCommands) private var commands
+    @ObservedObject private var whistle = WhistleTrigger.shared
+    @State private var newCommand = ""
+
+    var body: some View {
+        Section {
+            Toggle("Listen for whistles", isOn: $enabled)
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Pattern")
+                    Text(saved == nil ? "Default: slide down, then up" : "Your own pattern")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                WhistleContourView(contour: whistle.pattern.takes[0])
+                    .frame(width: 90, height: 28)
+            }
+            if whistle.recordingTarget == .trigger {
+                recordingRow(prompt: "Whistle your listening pattern")
+            } else {
+                HStack {
+                    Button("Record Pattern…") { whistle.beginRecording() }
+                    Button("Use Default") { whistle.useDefaultPattern() }
+                        .disabled(saved == nil)
+                }
+                .disabled(whistle.isRecording)
+            }
+            if whistle.pausedForBluetooth {
+                Label("Paused while a Bluetooth headset is the microphone", systemImage: "headphones")
+                    .foregroundStyle(.secondary)
+            }
+            if let message = whistle.message {
+                Text(message).foregroundStyle(.secondary)
+            }
+            if enabled, !whistle.isRecording, let heard = whistle.lastHeard {
+                Label(
+                    heard.matched
+                        ? (heard.label == "listen" ? "Last whistle: listening pattern" : "Last whistle: “\(heard.label)”")
+                        : "Last whistle didn't match anything",
+                    systemImage: heard.matched ? "checkmark.circle.fill" : "xmark.circle"
+                )
+                .foregroundStyle(heard.matched ? .green : .secondary)
+                .help(String(format: "Difference %.2f (matches up to %.2f)", heard.distance, heard.threshold))
+            }
+        } header: {
+            Text("Whistle to talk")
+        } footer: {
+            Text("Whistle the pattern, wait for the chime, then say what you want, like “mute” or “what's on my calendar”. To record your own, whistle the same short phrase three times; it's matched by its shape, so the key and speed don't need to be exact. While this is on the microphone stays open (the orange dot shows), but only the pitch is measured on this Mac. Nothing is transcribed until a pattern matches. Paused while a Bluetooth headset is the microphone, since opening it lowers its audio quality.")
+                .foregroundStyle(.secondary)
+                .font(.caption)
+        }
+
+        Section {
+            ForEach(commands) { command in
+                HStack {
+                    WhistleContourView(contour: command.pattern.takes[0])
+                        .frame(width: 60, height: 22)
+                    Text(command.text)
+                    Spacer()
+                    Button(role: .destructive) {
+                        whistle.deleteCommand(command.id)
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Delete this whistle command")
+                }
+            }
+            if case .command(let text) = whistle.recordingTarget {
+                recordingRow(prompt: "Whistle the pattern for “\(text)”")
+            } else {
+                HStack {
+                    TextField("Command", text: $newCommand, prompt: Text("What it does, e.g. “mute” or “next song”"))
+                        .labelsHidden()
+                        .onSubmit(recordCommand)
+                    Button("Record…", action: recordCommand)
+                        .disabled(newCommand.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .disabled(whistle.isRecording)
+            }
+        } header: {
+            Text("Whistle commands")
+        } footer: {
+            Text("Each command runs as if you'd said it, without whistling the listening pattern first. Instant actions like “mute” run right away; anything else goes to the agent. Patterns must sound different from each other.")
+                .foregroundStyle(.secondary)
+                .font(.caption)
+        }
+    }
+
+    private func recordCommand() {
+        let text = newCommand.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        whistle.beginRecording(.command(text))
+        newCommand = ""
+    }
+
+    private func recordingRow(prompt: String) -> some View {
+        HStack {
+            ProgressView().controlSize(.small)
+            Text("\(prompt) (\((whistle.takes?.count ?? 0) + 1) of \(WhistleTrigger.takesNeeded))…")
+            Spacer()
+            ForEach(Array((whistle.takes ?? []).enumerated()), id: \.offset) { _, take in
+                WhistleContourView(contour: take).frame(width: 40, height: 20)
+            }
+            Button("Cancel") { whistle.cancelRecording() }
+        }
+    }
+}
+
+/// A whistle's pitch over time, as a small line.
+struct WhistleContourView: View {
+    let contour: WhistleContour
+
+    var body: some View {
+        Canvas { context, size in
+            let voiced = contour.pitches.compactMap { $0 }
+            guard let low = voiced.min(), let high = voiced.max(), contour.pitches.count > 1 else { return }
+            let span = max(high - low, 3)
+            let mid = (high + low) / 2
+            var path = Path()
+            var drawing = false
+            for (index, pitch) in contour.pitches.enumerated() {
+                guard let pitch else {
+                    drawing = false
+                    continue
+                }
+                let x = size.width * CGFloat(index) / CGFloat(contour.pitches.count - 1)
+                let y = size.height * (0.5 - CGFloat((pitch - mid) / span) * 0.9)
+                if drawing { path.addLine(to: CGPoint(x: x, y: y)) } else { path.move(to: CGPoint(x: x, y: y)) }
+                drawing = true
+            }
+            context.stroke(path, with: .color(.accentColor), style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
         }
     }
 }
