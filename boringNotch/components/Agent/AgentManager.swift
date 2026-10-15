@@ -349,7 +349,7 @@ final class AgentManager: ObservableObject {
         retry = nil
         modelStatus = nil
         Task { await checkDone() }
-        if DecisionEngine.shared.hasJevKey, Defaults[.jevInstantActions] {
+        if DecisionEngine.shared.decisionsAvailable, Defaults[.jevInstantActions] {
             learnOffer = LearnedActions.shared.candidate(from: items)
         }
         if showResultWhenDone {
@@ -388,7 +388,7 @@ final class AgentManager: ObservableObject {
 
     /// Asks Jev whether the last task actually finished. Jev-only; skipped offline.
     private func checkDone() async {
-        guard Defaults[.jevDoneCheck], DecisionEngine.shared.jevAvailable,
+        guard Defaults[.jevDoneCheck], DecisionEngine.shared.decisionsAvailable,
               let userIndex = items.lastIndex(where: { $0.kind == .user }),
               let reply = items.last(where: { $0.kind == .assistant }),
               let replyIndex = items.firstIndex(of: reply), replyIndex > userIndex else { return }

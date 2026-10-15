@@ -150,8 +150,8 @@ final class AmbientMonitor: ObservableObject {
         let pasteboard = NSPasteboard.general
         guard pasteboard.changeCount != lastClipboardChange else { return }
         lastClipboardChange = pasteboard.changeCount
-        // Clipboard changes are frequent; only consult Jev (never the local model) and rarely.
-        guard DecisionEngine.shared.jevAvailable,
+        // Clipboard changes are frequent; only consult Jev or Laya (never the Gemma model) and rarely.
+        guard DecisionEngine.shared.decisionsAvailable,
               Date().timeIntervalSince(lastClipboardNudge) > 900,
               let text = pasteboard.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines),
               !text.isEmpty else { return }

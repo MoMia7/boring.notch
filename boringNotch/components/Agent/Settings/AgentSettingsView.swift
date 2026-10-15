@@ -65,6 +65,7 @@ struct AgentSettings: View {
                 WhistleSettingsSection()
             case .jev:
                 JevSettingsSection()
+                LayaSettingsSection()
                 LearnedActionsSection()
             case .spotify:
                 SpotifySettingsSection()
@@ -616,6 +617,79 @@ private struct JevSettingsSection: View {
                 .font(.caption)
         }
         .onAppear { hasKey = JevKeychain.load() != nil }
+    }
+}
+
+/// Beta: answer the notch's decisions on this Mac with Laya instead of Jev.
+private struct LayaSettingsSection: View {
+    @Default(.decisionBackend) private var backend
+    @ObservedObject private var store = LayaModelStore.shared
+    @State private var testResult: String?
+    @State private var isTesting = false
+
+    var body: some View {
+        Section {
+            Picker("Decisions by", selection: $backend) {
+                Text("Jev").tag(DecisionBackend.jev)
+                Text("Local (Laya)").tag(DecisionBackend.local)
+                Text("Shadow: Jev decides, Laya compared").tag(DecisionBackend.shadow)
+            }
+            .onChange(of: backend) { _, _ in DecisionEngine.shared.warmUpLaya() }
+
+            HStack {
+                switch store.status {
+                case .notInstalled:
+                    Text("Local model not downloaded (about 800 MB)")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Download") { store.install() }
+                case .downloading(let fraction):
+                    ProgressView(value: fraction)
+                    Text("\(Int(fraction * 100))%")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                    Button("Cancel") { store.cancel() }
+                case .installed(let version):
+                    Text("Local model \(version)")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if isTesting { ProgressView().controlSize(.small) }
+                    Button("Test") {
+                        isTesting = true
+                        testResult = nil
+                        Task {
+                            testResult = await DecisionEngine.shared.testLaya()
+                            isTesting = false
+                        }
+                    }
+                    .disabled(isTesting)
+                    Button("Remove") { store.remove() }
+                case .failed(let message):
+                    Text(message)
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                    Spacer()
+                    Button("Retry") { store.install() }
+                }
+            }
+            if let testResult {
+                Text(testResult)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+            if backend == .shadow {
+                Button("Show comparison log in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([LayaShadowLog.url])
+                }
+            }
+        } header: {
+            Text("Local decisions (beta)")
+        } footer: {
+            Text("Laya is a small model distilled from Jev that runs on this Mac: no key, no network, nothing leaves the device. Local falls back to Jev while the model loads or if it fails. Shadow keeps Jev in charge and logs both answers locally so you can compare them.")
+                .foregroundStyle(.secondary)
+                .font(.caption)
+        }
     }
 }
 

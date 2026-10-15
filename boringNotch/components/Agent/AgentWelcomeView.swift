@@ -189,7 +189,7 @@ struct AgentWelcomeView: View {
 
     /// Reorders the pool with Jev using only coarse context; keeps the default order offline.
     private func rank(_ pool: [AgentSuggestion]) async {
-        guard Defaults[.jevSmartSuggestions], DecisionEngine.shared.jevAvailable, pool.count > 9 else { return }
+        guard Defaults[.jevSmartSuggestions], DecisionEngine.shared.decisionsAvailable, pool.count > 9 else { return }
         let now = Date()
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE HH:mm"

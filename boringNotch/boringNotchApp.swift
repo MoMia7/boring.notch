@@ -452,6 +452,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         AmbientMonitor.shared.start()
+        DecisionEngine.shared.warmUpLaya()
         PushToTalk.shared.start()
         WhistleTrigger.shared.start()
         NotificationCenter.default.addObserver(forName: .agentNudge, object: nil, queue: .main) { [weak self] _ in

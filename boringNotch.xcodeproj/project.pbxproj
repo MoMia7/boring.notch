@@ -132,6 +132,9 @@
 		A6E000000000000000000BA8 /* ContextCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AA8 /* ContextCapture.swift */; };
 		A6E000000000000000000BA9 /* LearnedActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AA9 /* LearnedActions.swift */; };
 		A6E000000000000000000BAB /* WhistleTrigger.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AAB /* WhistleTrigger.swift */; };
+		A6E000000000000000000BAC /* LayaTokenizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AAC /* LayaTokenizer.swift */; };
+		A6E000000000000000000BAD /* LayaEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AAD /* LayaEngine.swift */; };
+		A6E000000000000000000BAE /* LayaModelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AAE /* LayaModelStore.swift */; };
 		A6E000000000000000000BA0 /* PushToTalk.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AA0 /* PushToTalk.swift */; };
 		A6E000000000000000000BA1 /* SpotifyClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AA1 /* SpotifyClient.swift */; };
 		A6E000000000000000000BA2 /* SpotifySettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E000000000000000000AA2 /* SpotifySettingsSection.swift */; };
@@ -325,6 +328,9 @@
 		A6E000000000000000000AA8 /* ContextCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextCapture.swift; sourceTree = "<group>"; };
 		A6E000000000000000000AA9 /* LearnedActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearnedActions.swift; sourceTree = "<group>"; };
 		A6E000000000000000000AAB /* WhistleTrigger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhistleTrigger.swift; sourceTree = "<group>"; };
+		A6E000000000000000000AAC /* LayaTokenizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayaTokenizer.swift; sourceTree = "<group>"; };
+		A6E000000000000000000AAD /* LayaEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayaEngine.swift; sourceTree = "<group>"; };
+		A6E000000000000000000AAE /* LayaModelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LayaModelStore.swift; sourceTree = "<group>"; };
 		A6E000000000000000000AA0 /* PushToTalk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushToTalk.swift; sourceTree = "<group>"; };
 		A6E000000000000000000AA1 /* SpotifyClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyClient.swift; sourceTree = "<group>"; };
 		A6E000000000000000000AA2 /* SpotifySettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings/SpotifySettingsSection.swift; sourceTree = "<group>"; };
@@ -434,6 +440,9 @@
 				A6E000000000000000000AA8 /* ContextCapture.swift */,
 				A6E000000000000000000AA9 /* LearnedActions.swift */,
 				A6E000000000000000000AAB /* WhistleTrigger.swift */,
+				A6E000000000000000000AAC /* LayaTokenizer.swift */,
+				A6E000000000000000000AAD /* LayaEngine.swift */,
+				A6E000000000000000000AAE /* LayaModelStore.swift */,
 				A6E000000000000000000AA0 /* PushToTalk.swift */,
 				A6E000000000000000000AA1 /* SpotifyClient.swift */,
 				A6E000000000000000000AA2 /* SpotifySettingsSection.swift */,
@@ -1091,6 +1100,9 @@
 				A6E000000000000000000BA8 /* ContextCapture.swift in Sources */,
 				A6E000000000000000000BA9 /* LearnedActions.swift in Sources */,
 				A6E000000000000000000BAB /* WhistleTrigger.swift in Sources */,
+				A6E000000000000000000BAC /* LayaTokenizer.swift in Sources */,
+				A6E000000000000000000BAD /* LayaEngine.swift in Sources */,
+				A6E000000000000000000BAE /* LayaModelStore.swift in Sources */,
 				A6E000000000000000000BA0 /* PushToTalk.swift in Sources */,
 				A6E000000000000000000BA1 /* SpotifyClient.swift in Sources */,
 				A6E000000000000000000BA2 /* SpotifySettingsSection.swift in Sources */,

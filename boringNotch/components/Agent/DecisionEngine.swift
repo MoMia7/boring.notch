@@ -20,6 +20,17 @@ extension Defaults.Keys {
     static let jevAmbientNudges = Key<Bool>("jevAmbientNudges", default: true)
     static let jevSmartSuggestions = Key<Bool>("jevSmartSuggestions", default: true)
     static let jevDoneCheck = Key<Bool>("jevDoneCheck", default: true)
+    static let decisionBackend = Key<DecisionBackend>("decisionBackend", default: .jev)
+}
+
+/// Who answers the notch's quick decisions.
+enum DecisionBackend: String, CaseIterable, Defaults.Serializable {
+    /// TypeSafe's Jev, over the network.
+    case jev
+    /// Laya on this Mac; Jev only when the local model is not ready.
+    case local
+    /// Jev decides; Laya answers alongside and both answers are logged for comparison.
+    case shadow
 }
 
 enum DecisionQuestion {
@@ -40,7 +51,16 @@ struct DecisionAnswer {
 
 enum DecisionSource: String {
     case jev
+    case laya
     case gemma
+
+    var help: String {
+        switch self {
+        case .jev: "Decided by Jev"
+        case .laya: "Decided on-device by Laya"
+        case .gemma: "Decided on-device by Gemma (Jev unavailable)"
+        }
+    }
 }
 
 struct DecisionResult {
@@ -72,6 +92,11 @@ final class DecisionEngine: ObservableObject {
     var hasJevKey: Bool { JevKeychain.load() != nil }
     var jevAvailable: Bool { hasJevKey && Date() >= jevBackoffUntil }
 
+    /// Whether `decide` can answer at all: Jev, or the local model when Local is chosen.
+    var decisionsAvailable: Bool {
+        jevAvailable || (Defaults[.decisionBackend] == .local && LayaModelStore.shared.modelDirectory != nil)
+    }
+
     /// - Parameters:
     ///   - state: JSON-serialisable context sent to Jev. Keep it small and free of private content.
     ///   - localState: richer context used only for the on-device fallback (defaults to `state`).
@@ -85,8 +110,26 @@ final class DecisionEngine: ObservableObject {
         timeout: TimeInterval = 2.5,
         gemmaMinInterval: TimeInterval = 120
     ) async -> DecisionResult? {
-        if jevAvailable, let result = await askJev(state: state, questions: questions, timeout: timeout) {
-            return result
+        switch Defaults[.decisionBackend] {
+        case .jev:
+            if jevAvailable, let result = await askJev(state: state, questions: questions, timeout: timeout) {
+                return result
+            }
+        case .local:
+            if let result = await askLaya(state: state, questions: questions) {
+                return result
+            }
+            if jevAvailable, let result = await askJev(state: state, questions: questions, timeout: timeout) {
+                return result
+            }
+        case .shadow:
+            async let laya = askLaya(state: state, questions: questions)
+            let jev = jevAvailable ? await askJev(state: state, questions: questions, timeout: timeout) : nil
+            let local = await laya
+            if jev != nil || local != nil {
+                LayaShadowLog.record(state: state, questions: questions, jev: jev, laya: local)
+            }
+            if let jev { return jev }
         }
         guard fallback == .gemma else { return nil }
         // The local model has a single slot; never compete with a running agent turn.
@@ -109,6 +152,56 @@ final class DecisionEngine: ObservableObject {
             return String(format: "OK · %@ · %.0f ms · p=%.2f", lastJevModel ?? "jev", result.latency * 1000, p)
         }
         return lastJevError ?? "Failed"
+    }
+
+    // MARK: - Laya
+
+    /// Answers on-device when the model is installed. The first call after launch (or after an
+    /// idle unload) loads the model in the background and returns nil, so callers fall back.
+    private func askLaya(state: Any, questions: [(String, DecisionQuestion)]) async -> DecisionResult? {
+        guard let dir = LayaModelStore.shared.modelDirectory else { return nil }
+        let engine = LayaEngine.shared
+        guard await engine.isLoaded else {
+            warmUpLaya()
+            return nil
+        }
+        let stateText = LayaJSON.serialize(state)
+        do {
+            try await engine.load(from: dir)
+            return try await engine.decide(stateText: stateText, questions: questions)
+        } catch {
+            log.error("laya failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    /// Loads the local model if it is installed and in use; safe to call often.
+    func warmUpLaya() {
+        guard Defaults[.decisionBackend] != .jev, let dir = LayaModelStore.shared.modelDirectory else { return }
+        Task.detached(priority: .utility) {
+            do {
+                try await LayaEngine.shared.load(from: dir)
+            } catch {
+                log.error("laya load failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    /// Used by Settings to check the local model end to end.
+    func testLaya() async -> String {
+        guard let dir = LayaModelStore.shared.modelDirectory else { return "Model not downloaded." }
+        do {
+            let loadStart = Date()
+            try await LayaEngine.shared.load(from: dir)
+            let loadTime = Date().timeIntervalSince(loadStart)
+            guard let result = try await LayaEngine.shared.decide(
+                stateText: LayaJSON.serialize(["message": "Can you turn the volume down a bit?"]),
+                questions: [("about_audio", .noul("The message is about sound or volume"))]
+            ), let p = result["about_audio"]?.probability else { return "No answer" }
+            return String(format: "OK · loaded in %.1f s · %.0f ms · p=%.2f", loadTime, result.latency * 1000, p)
+        } catch {
+            return error.localizedDescription
+        }
     }
 
     // MARK: - Jev
@@ -264,6 +357,70 @@ final class DecisionEngine: ObservableObject {
             }
         }
         return DecisionResult(answers: parsed, source: .gemma, latency: Date().timeIntervalSince(started))
+    }
+}
+
+// MARK: - Shadow log
+
+/// Jev's and Laya's answers to the same decisions, one JSON object per line, kept on this Mac
+/// (Application Support/NotchAgent/Laya/shadow.jsonl) to see where the local model disagrees.
+enum LayaShadowLog {
+    private static let maxBytes: UInt64 = 50 << 20
+
+    static var url: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("NotchAgent/Laya/shadow.jsonl")
+    }
+
+    @MainActor
+    static func record(state: Any, questions: [(String, DecisionQuestion)], jev: DecisionResult?, laya: DecisionResult?) {
+        func encode(_ result: DecisionResult?) -> Any {
+            guard let result else { return NSNull() }
+            var answers: [String: Any] = [:]
+            for (id, a) in result.answers {
+                var entry: [String: Any] = ["confidence": a.confidence]
+                if let c = a.choice { entry["choice"] = c }
+                if let p = a.probability { entry["probability"] = p }
+                if let s = a.score { entry["score"] = s }
+                answers[id] = entry
+            }
+            return ["latency_ms": Int(result.latency * 1000), "answers": answers]
+        }
+        var qs: [String: Any] = [:]
+        for (id, question) in questions {
+            switch question {
+            case .noul(let ins): qs[id] = ["type": "noul", "instructions": ins]
+            case .choice(let ins, let options):
+                qs[id] = ["type": "choice", "instructions": ins, "criteria": options.map { [$0.0, $0.1] }]
+            case .score(let ins, let levels): qs[id] = ["type": "score", "instructions": ins, "criteria": levels]
+            }
+        }
+        let line: [String: Any] = [
+            "time": ISO8601DateFormatter().string(from: Date()),
+            "state": LayaJSON.serialize(state),
+            "questions": qs,
+            "jev": encode(jev),
+            "laya": encode(laya),
+        ]
+        guard var data = try? JSONSerialization.data(withJSONObject: line, options: [.withoutEscapingSlashes]) else { return }
+        data.append(0x0A)
+        let url = self.url
+        Task.detached(priority: .background) {
+            let fm = FileManager.default
+            try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if let size = (try? fm.attributesOfItem(atPath: url.path))?[.size] as? UInt64, size > maxBytes {
+                let old = url.deletingPathExtension().appendingPathExtension("1.jsonl")
+                try? fm.removeItem(at: old)
+                try? fm.moveItem(at: url, to: old)
+            }
+            if let handle = try? FileHandle(forWritingTo: url) {
+                defer { try? handle.close() }
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+            } else {
+                try? data.write(to: url)
+            }
+        }
     }
 }
 

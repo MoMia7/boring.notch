@@ -198,8 +198,8 @@ final class QuickActions {
     func tryHandle(_ request: String) async -> (label: String, icon: String)? {
         lastThisRefers = nil
         guard Defaults[.jevInstantActions], request.count <= 140 else { return nil }
-        guard DecisionEngine.shared.jevAvailable else {
-            log.notice("skipped: Jev unavailable (key saved: \(DecisionEngine.shared.hasJevKey, privacy: .public), last error: \(DecisionEngine.shared.lastJevError ?? "none", privacy: .public))")
+        guard DecisionEngine.shared.decisionsAvailable else {
+            log.notice("skipped: no decision backend (key saved: \(DecisionEngine.shared.hasJevKey, privacy: .public), last error: \(DecisionEngine.shared.lastJevError ?? "none", privacy: .public))")
             return nil
         }
 

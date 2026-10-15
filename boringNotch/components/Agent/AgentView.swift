@@ -424,10 +424,10 @@ private struct NudgeCard: View {
                         .foregroundStyle(.gray)
                 }
                 Spacer(minLength: 4)
-                Text(nudge.source == .jev ? "jev" : "local")
+                Text(nudge.source.rawValue)
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
                     .foregroundStyle(.gray.opacity(0.7))
-                    .help(nudge.source == .jev ? "Decided by Jev" : "Decided on-device by Gemma (Jev unavailable)")
+                    .help(nudge.source.help)
                 Button(action: onDismiss) {
                     Image(systemName: "xmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.gray)
                 }
