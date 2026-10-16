@@ -55,7 +55,8 @@ actor LayaEngine {
         if let loading { return try await loading.value }
         let task = Task {
             let started = Date()
-            let format = try JSONDecoder().decode(LayaFormat.self, from: Data(contentsOf: dir.appendingPathComponent("laya.json")))
+            guard let formatURL = Self.formatFile(in: dir) else { throw CocoaError(.fileNoSuchFile) }
+            let format = try JSONDecoder().decode(LayaFormat.self, from: Data(contentsOf: formatURL))
             let tokenizer = try LayaTokenizer(url: dir.appendingPathComponent("tokenizer.json"))
             let compiled = try await Self.compiledModel(in: dir)
             let config = MLModelConfiguration()
@@ -96,11 +97,23 @@ actor LayaEngine {
         }
     }
 
-    /// Compiles Laya.mlpackage once and keeps the .mlmodelc next to it.
+    /// Model files as published on Hugging Face (snap.json, Snap.mlpackage), or as the first local
+    /// builds named them (laya.json, Laya.mlpackage).
+    static func formatFile(in dir: URL) -> URL? {
+        ["snap.json", "laya.json"].map { dir.appendingPathComponent($0) }
+            .first { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    private static func packageName(in dir: URL) -> String {
+        FileManager.default.fileExists(atPath: dir.appendingPathComponent("Snap.mlpackage").path) ? "Snap" : "Laya"
+    }
+
+    /// Compiles the .mlpackage once and keeps the .mlmodelc next to it.
     private static func compiledModel(in dir: URL) async throws -> URL {
-        let target = dir.appendingPathComponent("Laya.mlmodelc")
+        let name = packageName(in: dir)
+        let target = dir.appendingPathComponent(name + ".mlmodelc")
         if FileManager.default.fileExists(atPath: target.path) { return target }
-        let temp = try await MLModel.compileModel(at: dir.appendingPathComponent("Laya.mlpackage"))
+        let temp = try await MLModel.compileModel(at: dir.appendingPathComponent(name + ".mlpackage"))
         try? FileManager.default.removeItem(at: target)
         try FileManager.default.moveItem(at: temp, to: target)
         return target

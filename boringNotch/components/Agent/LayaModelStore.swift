@@ -2,8 +2,8 @@
 //  LayaModelStore.swift
 //  boringNotch
 //
-//  Downloads the on-device decision model once, into the app's own Application Support, and
-//  verifies every file against the release manifest. The app itself stays small; the model is
+//  Downloads the on-device decision model (Snap 1, from huggingface.co/Otron/snap-1) once, into
+//  the app's own Application Support, and verifies every file against the published manifest. The app itself stays small; the model is
 //  only fetched when the user chooses Local or Shadow decisions.
 //
 
@@ -17,7 +17,7 @@ private let log = Logger(subsystem: "io.otron.notch", category: "laya")
 extension Defaults.Keys {
     static let layaManifestURL = Key<String>(
         "layaManifestURL",
-        default: "https://github.com/MoMia7/boring.notch/releases/download/laya-notch-1/manifest.json"
+        default: "https://huggingface.co/Otron/snap-1/resolve/main/coreml/manifest.json"
     )
 }
 
@@ -70,7 +70,7 @@ final class LayaModelStore: ObservableObject {
         let marker = root.appendingPathComponent("current")
         guard let version = try? String(contentsOf: marker, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines),
               !version.isEmpty,
-              FileManager.default.fileExists(atPath: root.appendingPathComponent(version).appendingPathComponent("laya.json").path)
+              LayaEngine.formatFile(in: root.appendingPathComponent(version)) != nil
         else { return nil }
         return version
     }
