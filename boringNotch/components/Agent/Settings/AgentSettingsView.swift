@@ -2,9 +2,9 @@
 //  AgentSettingsView.swift
 //  boringNotch
 //
-//  Settings pane for the notch agent: connection to `opencode serve`, model and
-//  provider selection, provider credentials (API keys and OAuth, e.g. ChatGPT/Codex),
-//  and the Jev (TypeSafe) decision engine.
+//  Settings pane for the notch agent, split the way the agent works:
+//  System One answers instant decisions (Snap 1 on this Mac, or TypeSafe's Jev);
+//  System Two is the agent itself (`opencode serve`: models, providers, credentials).
 //
 
 import AppKit
@@ -15,17 +15,17 @@ import SwiftUI
 /// Pages of the Notch Agent settings, each shown as its own sidebar entry.
 enum AgentSettingsPage: String, CaseIterable {
     case agent = "Agent"
-    case models = "Models"
+    case systemOne = "System One"
+    case systemTwo = "System Two"
     case voice = "Voice"
-    case jev = "Jev"
     case spotify = "Spotify"
 
     var icon: String {
         switch self {
         case .agent: return "notch.mark"
-        case .models: return "cpu"
+        case .systemOne: return "bolt.fill"
+        case .systemTwo: return "brain"
         case .voice: return "waveform"
-        case .jev: return "bolt.fill"
         case .spotify: return "music.note"
         }
     }
@@ -46,10 +46,21 @@ struct AgentSettings: View {
                 } header: {
                     Text("Setup")
                 }
+                SystemsOverviewSection()
+                Section {
+                    KeyboardShortcuts.Recorder("Open Agent:", name: .openAgent)
+                } header: {
+                    Text("Shortcut")
+                }
+            case .systemOne:
+                DecisionEngineSection()
+                SnapModelSection()
+                JevSettingsSection()
+                SystemOneUsesSection()
+                LearnedActionsSection()
+            case .systemTwo:
                 connectionSection
-            case .models:
                 modelSection
-                providersSection
                 Section {
                     ProviderAuthForm(providerID: "openai", preferOAuth: true)
                 } header: {
@@ -59,18 +70,15 @@ struct AgentSettings: View {
                         .foregroundStyle(.secondary)
                         .font(.caption)
                 }
+                providersSection
                 connectSection
             case .voice:
                 VoiceSettingsSection()
                 WhistleSettingsSection()
-            case .jev:
-                JevSettingsSection()
-                LayaSettingsSection()
-                LearnedActionsSection()
             case .spotify:
                 SpotifySettingsSection()
             }
-            if page == .agent || page == .models, let error = client.lastError {
+            if page == .agent || page == .systemTwo, let error = client.lastError {
                 Section {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
@@ -106,11 +114,10 @@ struct AgentSettings: View {
                 .disabled(client.isLoading)
                 .help("Reload providers and models")
             }
-            KeyboardShortcuts.Recorder("Open Agent:", name: .openAgent)
         } header: {
             Text("Connection")
         } footer: {
-            Text("The agent tab talks to a local `opencode serve` instance. Restart the app after changing the URL.")
+            Text("System Two runs in a local `opencode serve` instance. Restart the app after changing the URL.")
                 .foregroundStyle(.secondary)
                 .font(.caption)
         }
@@ -543,103 +550,91 @@ struct ProviderAuthForm: View {
     }
 }
 
-// MARK: - Jev
+// MARK: - System One
 
-private struct JevSettingsSection: View {
-    @Default(.jevModel) private var jevModel
-    @State private var key = ""
-    @State private var hasKey = false
-    @State private var saveStatus: String?
-    @State private var testResult: String?
-    @State private var isTesting = false
+/// Which engine answers the notch's instant decisions, and how it is doing.
+private struct DecisionEngineSection: View {
+    @Default(.decisionBackend) private var backend
+    @ObservedObject private var store = LayaModelStore.shared
 
     var body: some View {
         Section {
+            Picker("Engine", selection: $backend) {
+                Text("Snap 1 — on this Mac").tag(DecisionBackend.local)
+                Text("Jev — TypeSafe, online").tag(DecisionBackend.jev)
+                Text("Compare — Jev decides, Snap 1 logged").tag(DecisionBackend.shadow)
+            }
+            .onChange(of: backend) { _, _ in DecisionEngine.shared.warmUpLaya() }
             HStack {
-                SecureField("Jev API key", text: $key, prompt: Text(hasKey ? "Saved in Keychain" : "Not set"))
-                Button("Save") {
-                    let ok = JevKeychain.save(key)
-                    key = ""
-                    hasKey = JevKeychain.load() != nil
-                    saveStatus = ok ? (hasKey ? "Saved" : "Removed") : "Couldn't save to Keychain"
-                }
-                .disabled(key.trimmingCharacters(in: .whitespaces).isEmpty)
-                if hasKey {
-                    Button("Remove") {
-                        JevKeychain.delete()
-                        hasKey = false
-                        saveStatus = "Removed"
-                    }
-                }
-            }
-            if let saveStatus {
-                Text(saveStatus)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            TextField("Model", text: $jevModel)
-            Defaults.Toggle(key: .jevInstantActions) {
-                Text("Instant actions")
-            }
-            Defaults.Toggle(key: .jevAmbientNudges) {
-                Text("Ambient nudges")
-            }
-            Defaults.Toggle(key: .jevSmartSuggestions) {
-                Text("Smart suggestions")
-            }
-            Defaults.Toggle(key: .jevDoneCheck) {
-                Text("Done check")
-            }
-            HStack {
-                if let testResult {
-                    Text(testResult)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
+                Text("Status")
                 Spacer()
-                if isTesting { ProgressView().controlSize(.small) }
-                Button("Test") {
-                    isTesting = true
-                    testResult = nil
-                    Task {
-                        testResult = await DecisionEngine.shared.testJev()
-                        isTesting = false
-                    }
+                SystemOneStatus()
+            }
+            if backend == .shadow {
+                Button("Show comparison log in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([LayaShadowLog.url])
                 }
-                .disabled(isTesting)
             }
         } header: {
-            Text("Jev (TypeSafe) decisions")
+            Text("Engine")
         } footer: {
-            Text("Jev answers quick yes/no decisions for the notch. The key is stored in your Keychain; without it the local model is used.")
+            Text(footer)
                 .foregroundStyle(.secondary)
                 .font(.caption)
         }
-        .onAppear { hasKey = JevKeychain.load() != nil }
+    }
+
+    private var footer: String {
+        switch backend {
+        case .local: "Snap 1 answers on this Mac in a few milliseconds: no key, no network, nothing leaves the device. While it loads, or if it isn't downloaded, Jev is used when a key is saved."
+        case .jev: "Jev answers over the network with your TypeSafe key."
+        case .shadow: "Jev stays in charge; Snap 1 answers the same decisions alongside and both answers are logged on this Mac, to see where they differ."
+        }
     }
 }
 
-/// Beta: answer the notch's decisions on this Mac with Laya instead of Jev.
-private struct LayaSettingsSection: View {
+/// One-line health of System One, shared by the overview and the System One page.
+struct SystemOneStatus: View {
     @Default(.decisionBackend) private var backend
+    @ObservedObject private var store = LayaModelStore.shared
+
+    var body: some View {
+        let (ok, text) = state
+        HStack(spacing: 6) {
+            Circle().fill(ok ? Color.green : Color.orange).frame(width: 8, height: 8)
+            Text(text).foregroundStyle(.secondary)
+        }
+    }
+
+    private var state: (Bool, String) {
+        let hasKey = DecisionEngine.shared.hasJevKey
+        let snapReady: Bool = { if case .installed = store.status { return true } else { return false } }()
+        switch backend {
+        case .jev:
+            return hasKey ? (true, "Jev") : (false, "Jev · no key saved")
+        case .local:
+            if snapReady { return (true, "Snap 1 · on this Mac") }
+            if case .downloading(let f) = store.status { return (false, "Downloading Snap 1 · \(Int(f * 100))%") }
+            return (false, hasKey ? "Snap 1 not downloaded · using Jev" : "Snap 1 not downloaded")
+        case .shadow:
+            if !hasKey { return (false, "Compare needs a Jev key") }
+            return snapReady ? (true, "Jev · comparing with Snap 1") : (false, "Jev · Snap 1 not downloaded")
+        }
+    }
+}
+
+/// The on-device decision model: download, test, remove.
+private struct SnapModelSection: View {
     @ObservedObject private var store = LayaModelStore.shared
     @State private var testResult: String?
     @State private var isTesting = false
 
     var body: some View {
         Section {
-            Picker("Decisions by", selection: $backend) {
-                Text("Jev").tag(DecisionBackend.jev)
-                Text("Local (Laya)").tag(DecisionBackend.local)
-                Text("Shadow: Jev decides, Laya compared").tag(DecisionBackend.shadow)
-            }
-            .onChange(of: backend) { _, _ in DecisionEngine.shared.warmUpLaya() }
-
             HStack {
                 switch store.status {
                 case .notInstalled:
-                    Text("Local model not downloaded (about 800 MB)")
+                    Text("Not downloaded (about 850 MB)")
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button("Download") { store.install() }
@@ -650,7 +645,7 @@ private struct LayaSettingsSection: View {
                         .foregroundStyle(.secondary)
                     Button("Cancel") { store.cancel() }
                 case .installed(let version):
-                    Text("Local model \(version)")
+                    Text("Downloaded · \(version)")
                         .foregroundStyle(.secondary)
                     Spacer()
                     if isTesting { ProgressView().controlSize(.small) }
@@ -678,17 +673,175 @@ private struct LayaSettingsSection: View {
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             }
-            if backend == .shadow {
-                Button("Show comparison log in Finder") {
-                    NSWorkspace.shared.activateFileViewerSelecting([LayaShadowLog.url])
+        } header: {
+            Text("Snap 1")
+        } footer: {
+            Text("OTRON's decision model, downloaded once and run with Core ML. Used by Snap 1 and Compare.")
+                .foregroundStyle(.secondary)
+                .font(.caption)
+        }
+    }
+}
+
+/// TypeSafe's Jev: key, model, test.
+private struct JevSettingsSection: View {
+    @Default(.jevModel) private var jevModel
+    @State private var key = ""
+    @State private var hasKey = false
+    @State private var saveStatus: String?
+    @State private var testResult: String?
+    @State private var isTesting = false
+
+    var body: some View {
+        Section {
+            HStack {
+                SecureField("API key", text: $key, prompt: Text(hasKey ? "Saved in Keychain" : "Not set"))
+                Button("Save") {
+                    let ok = JevKeychain.save(key)
+                    key = ""
+                    hasKey = JevKeychain.load() != nil
+                    saveStatus = ok ? (hasKey ? "Saved" : "Removed") : "Couldn't save to Keychain"
+                }
+                .disabled(key.trimmingCharacters(in: .whitespaces).isEmpty)
+                if hasKey {
+                    Button("Remove") {
+                        JevKeychain.delete()
+                        hasKey = false
+                        saveStatus = "Removed"
+                    }
+                }
+            }
+            if let saveStatus {
+                Text(saveStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            TextField("Model", text: $jevModel)
+            HStack {
+                if let testResult {
+                    Text(testResult)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                Spacer()
+                if isTesting { ProgressView().controlSize(.small) }
+                Button("Test") {
+                    isTesting = true
+                    testResult = nil
+                    Task {
+                        testResult = await DecisionEngine.shared.testJev()
+                        isTesting = false
+                    }
+                }
+                .disabled(isTesting)
+            }
+        } header: {
+            Text("Jev")
+        } footer: {
+            Text("TypeSafe's hosted decision model. The key is stored in your Keychain. Used by Jev and Compare, and as Snap 1's fallback.")
+                .foregroundStyle(.secondary)
+                .font(.caption)
+        }
+        .onAppear { hasKey = JevKeychain.load() != nil }
+    }
+}
+
+/// What System One is allowed to decide, whichever engine answers.
+private struct SystemOneUsesSection: View {
+    var body: some View {
+        Section {
+            Defaults.Toggle(key: .jevInstantActions) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Instant actions")
+                    Text("Run simple requests like “mute” or “play my liked songs” without the agent")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Defaults.Toggle(key: .jevAmbientNudges) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Ambient nudges")
+                    Text("Offer a quick follow-up after downloads, before meetings, on low battery")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Defaults.Toggle(key: .jevSmartSuggestions) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Smart suggestions")
+                    Text("Order the agent's suggested prompts by what fits right now")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Defaults.Toggle(key: .jevDoneCheck) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Done check")
+                    Text("Check whether the agent really finished a task")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
         } header: {
-            Text("Local decisions (beta)")
+            Text("Uses")
+        }
+    }
+}
+
+// MARK: - Overview
+
+/// The two systems at a glance, on the Agent page.
+private struct SystemsOverviewSection: View {
+    @ObservedObject private var client = OpencodeConfigClient.shared
+
+    var body: some View {
+        Section {
+            overviewRow(icon: "bolt.fill", title: "System One — instant decisions",
+                        detail: "Routes requests, runs instant actions, decides when to nudge. Milliseconds.",
+                        page: .systemOne) { SystemOneStatus() }
+            overviewRow(icon: "brain", title: "System Two — the agent",
+                        detail: "Answers questions and does multi-step work with tools. Seconds.",
+                        page: .systemTwo) { systemTwoStatus }
+        } header: {
+            Text("How it works")
         } footer: {
-            Text("Laya is a small model distilled from Jev that runs on this Mac: no key, no network, nothing leaves the device. Local falls back to Jev while the model loads or if it fails. Shadow keeps Jev in charge and logs both answers locally so you can compare them.")
+            Text("Every request goes to System One first. Whatever it can't do instantly, it hands to System Two.")
                 .foregroundStyle(.secondary)
                 .font(.caption)
+        }
+    }
+
+    private func overviewRow<S: View>(icon: String, title: String, detail: String, page: AgentSettingsPage,
+                                      @ViewBuilder status: () -> S) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .frame(width: 18)
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                status().font(.caption)
+            }
+            Spacer()
+            Button("Open") { SetupStatus.openSettings(page) }
+        }
+    }
+
+    @ViewBuilder
+    private var systemTwoStatus: some View {
+        let model = client.activeModel
+        switch client.health {
+        case .healthy:
+            HStack(spacing: 6) {
+                Circle().fill(model.isEmpty ? Color.orange : Color.green).frame(width: 8, height: 8)
+                Text(model.isEmpty ? "No model chosen" : model).foregroundStyle(.secondary)
+            }
+        case .unreachable:
+            HStack(spacing: 6) {
+                Circle().fill(.red).frame(width: 8, height: 8)
+                Text("opencode not running").foregroundStyle(.secondary)
+            }
+        case .unknown:
+            Text("Checking…").foregroundStyle(.secondary)
         }
     }
 }

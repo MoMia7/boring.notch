@@ -152,7 +152,7 @@ struct SetupChecklist: View {
                 row(icon: "cpu", title: "Model",
                     detail: status.modelName ?? "Log in with ChatGPT or add an API key",
                     state: status.agentRunning != true ? .blocked : (status.modelName != nil ? .ok : .missing)) {
-                    Button("Choose…") { SetupStatus.openSettings(.models) }
+                    Button("Choose…") { SetupStatus.openSettings(.systemTwo) }
                 }
             }
             if groups.contains(.permissions) {
@@ -173,10 +173,10 @@ struct SetupChecklist: View {
                 }
             }
             if groups.contains(.extras) {
-                row(icon: "bolt.fill", title: "Jev instant actions",
-                    detail: "Optional · makes simple requests run instantly",
-                    state: status.jevKey ? .ok : .optional) {
-                    Button("Add key…") { SetupStatus.openSettings(.jev) }
+                row(icon: "bolt.fill", title: "Instant decisions",
+                    detail: "Optional · Snap 1 on this Mac, or a Jev key, makes simple requests run instantly",
+                    state: status.jevKey || LayaModelStore.shared.modelDirectory != nil ? .ok : .optional) {
+                    Button("Set up…") { SetupStatus.openSettings(.systemOne) }
                 }
                 row(icon: "music.note", title: "Spotify",
                     detail: "Optional · Premium, for instant songs and playlists",

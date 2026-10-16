@@ -27,9 +27,9 @@ extension Defaults.Keys {
 enum DecisionBackend: String, CaseIterable, Defaults.Serializable {
     /// TypeSafe's Jev, over the network.
     case jev
-    /// Laya on this Mac; Jev only when the local model is not ready.
+    /// Snap 1 on this Mac; Jev only when the local model is not ready.
     case local
-    /// Jev decides; Laya answers alongside and both answers are logged for comparison.
+    /// Jev decides; Snap 1 answers alongside and both answers are logged for comparison.
     case shadow
 }
 
@@ -51,13 +51,13 @@ struct DecisionAnswer {
 
 enum DecisionSource: String {
     case jev
-    case laya
+    case snap
     case gemma
 
     var help: String {
         switch self {
         case .jev: "Decided by Jev"
-        case .laya: "Decided on-device by Laya"
+        case .snap: "Decided on this Mac by Snap 1"
         case .gemma: "Decided on-device by Gemma (Jev unavailable)"
         }
     }

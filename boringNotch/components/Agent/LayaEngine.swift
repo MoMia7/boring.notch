@@ -2,8 +2,9 @@
 //  LayaEngine.swift
 //  boringNotch
 //
-//  On-device decisions with Laya, a small encoder distilled from Jev. It answers the same typed
-//  questions in one forward pass of a Core ML model; nothing leaves the Mac.
+//  On-device decisions with Snap 1 (OTRON, huggingface.co/Otron/snap-1), a Laya-based encoder
+//  fine-tuned for typed decisions. It answers the same typed questions as Jev in one forward pass
+//  of a Core ML model; nothing leaves the Mac. Types keep the Laya name of the model family.
 //
 //  The input format mirrors laya_distill's "packed" layout exactly (laya-distill repo):
 //      [CLS] <q1 block> <q2 block> ... state [SEP]
@@ -158,7 +159,7 @@ actor LayaEngine {
                 answers[block.id] = Self.answer(block: block, logits: logits, format: format)
             }
         }
-        return DecisionResult(answers: answers, source: .laya, latency: Date().timeIntervalSince(started))
+        return DecisionResult(answers: answers, source: .snap, latency: Date().timeIntervalSince(started))
     }
 
     private struct Block {
