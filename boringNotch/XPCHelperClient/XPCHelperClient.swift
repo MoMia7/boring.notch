@@ -262,6 +262,46 @@ final class XPCHelperClient: NSObject {
         }
     }
 
+    // MARK: Notch Agent: opencode server
+
+    nonisolated func opencodeInstalledVersion() async -> String? {
+        do {
+            let service = await MainActor.run { ensureRemoteService() }
+            return try await service.withContinuation { service, continuation in
+                service.opencodeServerInfo { version in continuation.resume(returning: version) }
+            }
+        } catch {
+            return nil
+        }
+    }
+
+    nonisolated func restartOpencodeServer() async -> (ok: Bool, message: String) {
+        do {
+            let service = await MainActor.run { ensureRemoteService() }
+            return try await service.withContinuation { service, continuation in
+                service.restartOpencodeServer { ok, message in continuation.resume(returning: (ok, message)) }
+            }
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    nonisolated func upgradeOpencode() async -> (ok: Bool, message: String) {
+        do {
+            let service = await MainActor.run { ensureRemoteService() }
+            return try await service.withContinuation { service, continuation in
+                service.upgradeOpencode { ok, message in continuation.resume(returning: (ok, message)) }
+            }
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    nonisolated func revealOpencodeLog() async {
+        let service = await MainActor.run { ensureRemoteService() }
+        try? await service.withService { $0.revealOpencodeLog() }
+    }
+
     nonisolated func exportPreferences(bundleIdentifier: String) async -> Data? {
         do {
             let service = await MainActor.run { ensureRemoteService() }

@@ -105,15 +105,8 @@ struct AgentSettings: View {
                 Text("Status")
                 Spacer()
                 healthLabel
-                Button {
-                    Task { await client.reload() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.borderless)
-                .disabled(client.isLoading)
-                .help("Reload providers and models")
             }
+            ServerControls()
         } header: {
             Text("Connection")
         } footer: {
@@ -253,6 +246,104 @@ struct AgentSettings: View {
                 .foregroundStyle(.secondary)
                 .font(.caption)
         }
+    }
+}
+
+// MARK: - Server controls
+
+/// Restart, update and inspect System Two's opencode server (Notch's io.otron.notch.opencode
+/// service), through the helper since the app itself is sandboxed.
+private struct ServerControls: View {
+    @ObservedObject private var client = OpencodeConfigClient.shared
+    @State private var installed: String?
+    @State private var busy: String?
+    @State private var result: (ok: Bool, text: String)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Server")
+                Spacer()
+                Text(versionText)
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 8) {
+                Button("Refresh models") { run("Refreshing models…") { await refresh(); return (true, "Models refreshed") } }
+                Button("Restart") { run("Restarting…") { await restart() } }
+                Button("Update opencode") { run("Updating opencode… this can take a minute") { await update() } }
+                Spacer()
+                Button("Show log") { Task { await XPCHelperClient.shared.revealOpencodeLog() } }
+                    .buttonStyle(.borderless)
+            }
+            .disabled(busy != nil)
+            if let busy {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text(busy).font(.caption).foregroundStyle(.secondary)
+                }
+            } else if let result {
+                Label(result.text, systemImage: result.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(result.ok ? Color.secondary : Color.orange)
+                    .textSelection(.enabled)
+            }
+        }
+        .task { installed = await XPCHelperClient.shared.opencodeInstalledVersion() }
+    }
+
+    private var running: String? {
+        if case .healthy(let version) = client.health, !version.isEmpty { return version }
+        return nil
+    }
+
+    private var versionText: String {
+        switch (running, installed) {
+        case let (r?, i?) where r != i: return "opencode \(r) running · \(i) installed, restart to use it"
+        case let (r?, _): return "opencode \(r)"
+        case let (nil, i?): return "opencode \(i) installed · not running"
+        default: return "—"
+        }
+    }
+
+    private func run(_ label: String, _ action: @escaping () async -> (Bool, String)) {
+        busy = label
+        result = nil
+        Task {
+            let (ok, text) = await action()
+            installed = await XPCHelperClient.shared.opencodeInstalledVersion()
+            result = (ok, text)
+            busy = nil
+        }
+    }
+
+    private func refresh() async {
+        await client.refreshHealth()
+        await client.reload()
+    }
+
+    private func restart() async -> (Bool, String) {
+        let r = await XPCHelperClient.shared.restartOpencodeServer()
+        guard r.ok else { return (false, r.message) }
+        return await waitForServer(r.message)
+    }
+
+    private func update() async -> (Bool, String) {
+        let r = await XPCHelperClient.shared.upgradeOpencode()
+        guard r.ok else { return (false, r.message) }
+        return r.message.hasPrefix("Already") ? (true, r.message) : await waitForServer(r.message)
+    }
+
+    /// After a restart: wait until the server answers again, then reload providers and models.
+    private func waitForServer(_ message: String) async -> (Bool, String) {
+        for _ in 0..<40 {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            await client.refreshHealth()
+            if case .healthy = client.health {
+                await client.reload()
+                return (true, message + " · models reloaded")
+            }
+        }
+        return (false, message + ", but the server didn't come back within 20 s (see the log)")
     }
 }
 

@@ -67,6 +67,104 @@ class BoringNotchXPCHelper: NSObject, BoringNotchXPCHelperProtocol {
         reply(candidates.lazy.compactMap { FileManager.default.contents(atPath: $0) }.first)
     }
 
+    // MARK: - Notch Agent: opencode server
+
+    private static let opencodeLabel = "io.otron.notch.opencode"
+
+    /// The LaunchAgent that the agent setup installs, read for the binary and log paths.
+    private static var opencodeAgent: [String: Any] {
+        let path = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/LaunchAgents/\(opencodeLabel).plist")
+        guard let data = FileManager.default.contents(atPath: path.path),
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        else { return [:] }
+        return plist
+    }
+
+    private static var opencodeBinary: String {
+        (opencodeAgent["ProgramArguments"] as? [String])?.first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".opencode/bin/opencode").path
+    }
+
+    /// Version of the installed opencode binary (the running server may still be older).
+    @objc func opencodeServerInfo(with reply: @escaping (String?) -> Void) {
+        DispatchQueue.global().async {
+            let out = Self.runCombined(Self.opencodeBinary, ["--version"], wait: 15)
+            reply(out.map { $0.output.trimmingCharacters(in: .whitespacesAndNewlines) }.flatMap { $0.isEmpty ? nil : $0 })
+        }
+    }
+
+    @objc func restartOpencodeServer(with reply: @escaping (Bool, String) -> Void) {
+        DispatchQueue.global().async { let (ok, message) = Self.restartOpencode(); reply(ok, message) }
+    }
+
+    private static func restartOpencode() -> (Bool, String) {
+        let target = "gui/\(getuid())/\(opencodeLabel)"
+        if let r = runCombined("/bin/launchctl", ["kickstart", "-k", target], wait: 30), r.status == 0 {
+            return (true, "Restarted")
+        }
+        // not loaded (e.g. after a logout): load it from its plist
+        let plist = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/LaunchAgents/\(opencodeLabel).plist").path
+        guard FileManager.default.fileExists(atPath: plist) else { return (false, "The agent service isn't installed. Run the setup command.") }
+        let r = runCombined("/bin/launchctl", ["bootstrap", "gui/\(getuid())", plist], wait: 30)
+        return r?.status == 0 ? (true, "Started") : (false, r?.output.lastLines(3) ?? "launchctl failed")
+    }
+
+    /// `opencode upgrade`, then a restart so the server runs the new version.
+    @objc func upgradeOpencode(with reply: @escaping (Bool, String) -> Void) {
+        DispatchQueue.global().async {
+            let before = Self.runCombined(Self.opencodeBinary, ["--version"], wait: 15)?.output.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let r = Self.runCombined(Self.opencodeBinary, ["upgrade"], wait: 600) else {
+                reply(false, "The update didn't finish within 10 minutes.")
+                return
+            }
+            guard r.status == 0 else {
+                reply(false, r.output.lastLines(4).isEmpty ? "opencode upgrade failed" : r.output.lastLines(4))
+                return
+            }
+            let after = Self.runCombined(Self.opencodeBinary, ["--version"], wait: 15)?.output.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let before, let after, before == after {
+                reply(true, "Already up to date (\(after))")
+                return
+            }
+            let (restarted, message) = Self.restartOpencode()
+            reply(restarted, restarted ? "Updated \(before ?? "?") → \(after ?? "?") and restarted" : "Updated to \(after ?? "?"), but restart failed: \(message)")
+        }
+    }
+
+    @objc func revealOpencodeLog() {
+        let log = (Self.opencodeAgent["StandardOutPath"] as? String)
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("NotchAgent/logs/opencode.log").path
+        _ = Self.runCombined("/usr/bin/open", ["-R", log], wait: 10)
+    }
+
+    /// Runs a tool and returns its exit status with stdout and stderr together; nil on timeout.
+    private static func runCombined(_ path: String, _ arguments: [String], wait seconds: TimeInterval) -> (status: Int32, output: String)? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = arguments
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = (opencodeAgent["EnvironmentVariables"] as? [String: String])?["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        process.environment = env
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        var data = Data()
+        let lock = NSLock()
+        pipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            lock.lock(); data.append(chunk); lock.unlock()
+        }
+        do { try process.run() } catch { return nil }
+        let deadline = Date().addingTimeInterval(seconds)
+        while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
+        if process.isRunning { process.terminate(); pipe.fileHandleForReading.readabilityHandler = nil; return nil }
+        pipe.fileHandleForReading.readabilityHandler = nil
+        lock.lock(); data.append(pipe.fileHandleForReading.readDataToEndOfFile()); lock.unlock()
+        return (process.terminationStatus, String(data: data, encoding: .utf8) ?? "")
+    }
+
     private static func run(_ path: String, _ arguments: [String], wait seconds: TimeInterval) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
@@ -256,5 +354,11 @@ class BoringNotchXPCHelper: NSObject, BoringNotchXPCHelperProtocol {
             }
             return nil
         }()
+    }
+}
+
+private extension String {
+    func lastLines(_ n: Int) -> String {
+        split(whereSeparator: \.isNewline).suffix(n).joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

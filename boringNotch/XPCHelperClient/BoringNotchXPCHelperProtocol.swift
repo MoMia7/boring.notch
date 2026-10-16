@@ -9,6 +9,12 @@ import Foundation
 
 /// The protocol that this service will vend as its API. This protocol will also need to be visible to the process hosting the service.
 @objc protocol BoringNotchXPCHelperProtocol {
+
+    // Notch Agent: System Two's opencode server (the io.otron.notch.opencode LaunchAgent)
+    func opencodeServerInfo(with reply: @escaping (String?) -> Void)
+    func restartOpencodeServer(with reply: @escaping (Bool, String) -> Void)
+    func upgradeOpencode(with reply: @escaping (Bool, String) -> Void)
+    func revealOpencodeLog()
     func isAccessibilityAuthorized(with reply: @escaping (Bool) -> Void)
     func requestAccessibilityAuthorization()
     func ensureAccessibilityAuthorization(_ promptIfNeeded: Bool, with reply: @escaping (Bool) -> Void)
