@@ -7,7 +7,7 @@ REPO="${0:A:h:h}"
 OUT="$REPO/build/release"
 DERIVED="$REPO/build/DerivedData"
 TMP=$(mktemp -d)
-IDENTITY="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk '/Apple Development/ {print $2; exit}')}"
+IDENTITY="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk '/Apple Development/ && !/REVOKED|EXPIRED/ {print $2; exit}')}"
 IDENTITY="${IDENTITY:--}"
 
 rm -rf "$OUT" && mkdir -p "$OUT"

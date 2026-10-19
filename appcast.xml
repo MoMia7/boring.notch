@@ -5,12 +5,12 @@
     <title>Notch Agent</title>
     <item>
       <title>Notch Agent 0.5.0</title>
-      <pubDate>Mon, 19 Oct 2026 11:10:44 +0200</pubDate>
+      <pubDate>Mon, 19 Oct 2026 11:15:09 +0200</pubDate>
       <sparkle:version>5</sparkle:version>
       <sparkle:shortVersionString>0.5.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       <sparkle:releaseNotesLink>https://github.com/MoMia7/boring.notch/releases/tag/v0.5.0</sparkle:releaseNotesLink>
-      <enclosure url="https://github.com/MoMia7/boring.notch/releases/download/v0.5.0/Notch-Agent.dmg" sparkle:edSignature="5zcTtS6aLkH/1ViwAUtnn+x9NTSp/5JQTGvo71ljukg2wa6sdbXPTPxvDsLYuSLQfnPyUltd3gCoVqKlUPZiDQ==" length="9665292" type="application/octet-stream"/>
+      <enclosure url="https://github.com/MoMia7/boring.notch/releases/download/v0.5.0/Notch-Agent.dmg" sparkle:edSignature="6KOq5MKkYUb4CVLJoZwPszBo8WWAQPWI1HmgFj0xbX8bn/Wujs6BZDo0PEGUXDVZ0UhKG8rKHNqTDQacqeTCDQ==" length="9665126" type="application/octet-stream"/>
     </item>
     <item>
       <title>Notch Agent 0.4.0</title>
